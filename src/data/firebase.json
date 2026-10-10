@@ -1,9 +1,9 @@
 {
-  "apiKey": "",
-  "authDomain": "",
-  "projectId": "",
-  "storageBucket": "",
-  "messagingSenderId": "",
-  "appId": "",
+  "apiKey": "AIzaSyBa2qjnxw2OQtbgeGpacO5mF8xde1nu_jg",
+  "authDomain": "padel-culture.firebaseapp.com",
+  "projectId": "padel-culture",
+  "storageBucket": "padel-culture.firebasestorage.app",
+  "messagingSenderId": "197723097907",
+  "appId": "1:197723097907:web:2a6feb9f55cb2ac313cc46",
   "adminPhones": ["+918368715913"]
 }
