@@ -13,10 +13,21 @@
         <a href="/leaderboard">Leaderboard</a>
         <a href="/#faq">FAQ</a>
       </nav>
-      <a class="login-link" href="/login">Log in</a>
-      <a class="btn btn-solid topbar-cta" href="/join">Join</a>
+      <a class="cart-link" href="/cart" id="h-cart" hidden>Cart <span id="h-cart-n">0</span></a>
+      <a class="btn btn-solid topbar-cta" href="/join">Log in / Join</a>
     </div>
   </header>
+  <script type="module" is:inline>
+    import * as cart from '/js/cart.js';
+    const paint = () => {
+      const n = cart.get().length;
+      document.getElementById('h-cart').hidden = n === 0;
+      document.getElementById('h-cart-n').textContent = n;
+    };
+    window.addEventListener('cart-change', paint);
+    window.addEventListener('storage', paint);
+    paint();
+  </script>
 
 <style>
   /* Top bar */
@@ -31,8 +42,9 @@
   nav a { text-decoration: none; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--mist); }
   nav a:hover { color: var(--chalk); }
   .topbar-cta { padding: 0.6rem 1.1rem; }
-  .login-link { text-decoration: none; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--chalk); }
-  .login-link:hover { color: var(--olive); }
-  @media (max-width: 760px) { nav { display: none; } .login-link { margin-left: auto; } }
+  .cart-link { display: inline-flex; align-items: center; gap: 0.4rem; text-decoration: none; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--chalk); }
+  .cart-link span { display: inline-grid; place-items: center; min-width: 1.4rem; height: 1.4rem; padding-inline: 0.3rem; border-radius: 999px; background: var(--chalk); color: var(--forest); font-size: 0.7rem; letter-spacing: 0; }
+  .cart-link:hover { color: var(--olive); }
+  @media (max-width: 760px) { nav { display: none; } .cart-link { margin-left: auto; } .cart-link[hidden] + .topbar-cta { margin-left: auto; } .topbar-cta { padding: 0.6rem 0.9rem; letter-spacing: 0.1em; } }
 
 </style>

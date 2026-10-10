@@ -6,6 +6,7 @@ import { getCollection } from 'astro:content';
 import site from '../data/site.json';
 import faqData from '../data/faq.json';
 import gallery from '../data/gallery.json';
+import fbConfig from '../data/firebase.json';
 
 const tz = 'Asia/Kolkata';
 const all = await getCollection('games');
@@ -103,11 +104,11 @@ const jsonld = [
         </div>
         <ol class="board" id="board">
           {games.map((g) => {
-            const left = g.data.spotsLeft ?? g.data.spots;
-            const taken = Math.max(0, g.data.spots - left);
+            const taken = Math.min(g.data.spots, g.data.reserved || 0);
+            const left = g.data.spots - taken;
             const full = g.data.status === 'full' || !(left > 0);
             return (
-              <li class:list={['fixture', { full }]} data-start={g.data.date.toISOString()}>
+              <li class:list={['fixture', { full }]} data-start={g.data.date.toISOString()} data-id={g.id} data-spots={g.data.spots} data-reserved={g.data.reserved || 0} data-closed={g.data.status === 'full' ? '1' : ''}>
                 <div class="when">
                   <span class="dow">{fmt(g.data.date, { weekday: 'short' })}</span>
                   <span class="day">{fmt(g.data.date, { day: 'numeric' })}</span>
@@ -126,7 +127,7 @@ const jsonld = [
                     <span class="chip chip-level">{g.data.level}</span>
                   </p>
                 </div>
-                <div class="spots" aria-label={`${left} of ${g.data.spots} spots left`}>
+                <div class="spots" aria-live="polite">
                   <span class="dots" aria-hidden="true">
                     {Array.from({ length: g.data.spots }, (_, i) => <i class:list={{ on: taken > i }} />)}
                   </span>
@@ -134,9 +135,15 @@ const jsonld = [
                 </div>
                 <div class="book">
                   <span class="price">₹{g.data.price.toLocaleString('en-IN')}</span>
-                  <a class:list={['btn', full ? 'btn-ghost' : 'btn-solid']} href={bookHref(g)} target="_blank" rel="noopener">
-                    {full ? 'Join waitlist' : 'Book spot'}
-                  </a>
+                  {g.data.bookingLink ? (
+                    <a class="btn btn-solid" href={g.data.bookingLink} target="_blank" rel="noopener">Book spot</a>
+                  ) : (
+                    <>
+                      <button type="button" class="btn btn-solid b-add" data-id={g.id} hidden={full}>Book spot</button>
+                      <a class="btn btn-ghost b-wait" href={bookHref(g)} target="_blank" rel="noopener" hidden={!full}>Join waitlist</a>
+                    </>
+                  )}
+                  <span class="booked-note" hidden>You're booked ✓</span>
                 </div>
               </li>
             );
@@ -227,18 +234,76 @@ const jsonld = [
 
   <Footer />
 
-  <script is:inline>
-    // Hide games that have already started, so the board stays current between updates.
-    (function () {
-      var now = Date.now();
-      var rows = document.querySelectorAll('#board .fixture');
-      var shown = 0;
-      rows.forEach(function (r) {
-        var t = Date.parse(r.getAttribute('data-start'));
-        if (t && t + 3 * 3600e3 < now) r.hidden = true; else shown++;
+  <script type="application/json" id="fb-config" set:html={JSON.stringify(fbConfig)} />
+  <script type="module" is:inline>
+    import * as cart from '/js/cart.js';
+    const $ = (id) => document.getElementById(id);
+    const rows = [...document.querySelectorAll('#board .fixture')];
+
+    // Hide games that have already started.
+    const now = Date.now();
+    let shown = 0;
+    rows.forEach((r) => {
+      const t = Date.parse(r.dataset.start);
+      if (t && t + 3 * 3600e3 < now) r.hidden = true; else shown++;
+    });
+    if (rows.length && !shown) $('board-empty').hidden = false;
+
+    const booked = {};   // gameId -> online bookings (live)
+    const mine = new Set();
+
+    function paint() {
+      const inCart = new Set(cart.get());
+      rows.forEach((r) => {
+        const id = r.dataset.id;
+        const spots = +r.dataset.spots;
+        const taken = Math.min(spots, (+r.dataset.reserved || 0) + (booked[id] || 0));
+        const left = spots - taken;
+        const full = r.dataset.closed === '1' || left <= 0;
+        r.classList.toggle('full', full);
+        r.querySelectorAll('.dots i').forEach((d, i) => d.classList.toggle('on', i < taken));
+        r.querySelector('.spots-label').textContent = full ? 'Full · waitlist' : `${left} of ${spots} spot${spots === 1 ? '' : 's'} left`;
+        const add = r.querySelector('.b-add');
+        const wait = r.querySelector('.b-wait');
+        const note = r.querySelector('.booked-note');
+        const isMine = mine.has(id);
+        if (note) note.hidden = !isMine;
+        if (add) {
+          add.hidden = full || isMine;
+          add.textContent = inCart.has(id) ? 'In cart · View' : 'Book spot';
+          add.classList.toggle('btn-ghost', inCart.has(id));
+          add.classList.toggle('btn-solid', !inCart.has(id));
+        }
+        if (wait) wait.hidden = !full || isMine;
       });
-      if (rows.length && !shown) document.getElementById('board-empty').hidden = false;
-    })();
+    }
+
+    document.querySelectorAll('.b-add').forEach((b) => b.addEventListener('click', () => {
+      const id = b.dataset.id;
+      if (cart.get().includes(id)) { location.href = '/cart'; return; }
+      cart.add(id);
+      paint();
+    }));
+    window.addEventListener('cart-change', paint);
+    paint();
+
+    // Live spot counts and the player's own bookings.
+    const cfg = JSON.parse($('fb-config').textContent);
+    if (cfg.apiKey) {
+      try {
+        const fb = await import('/js/firebase.js');
+        const counts = await fb.listGameCounts();
+        Object.entries(counts).forEach(([id, g]) => { booked[id] = g.booked || 0; });
+        paint();
+        fb.watchUser(async (user) => {
+          mine.clear();
+          if (user) {
+            try { (await fb.listMyBookings(user.uid)).forEach((b) => mine.add(b.gameId)); } catch (e) { console.error(e); }
+          }
+          paint();
+        });
+      } catch (e) { console.error(e); }
+    }
   </script>
 </Base>
 
@@ -294,6 +359,7 @@ const jsonld = [
   .book { display: grid; gap: 0.6rem; justify-items: end; }
   .price { font-family: var(--display); font-size: 1.7rem; font-variant-numeric: lining-nums; }
   .fixture.full .what h3, .fixture.full .price { color: var(--mist); }
+  .booked-note { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--sage); }
   .board-empty { padding-block: 2rem; color: var(--mist); }
   .board-empty a { color: var(--sage); }
   @media (max-width: 900px) {

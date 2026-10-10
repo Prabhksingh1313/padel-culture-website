@@ -8,7 +8,7 @@ format: Americano
 level: All levels
 price: 800
 spots: 16
-spotsLeft: 9
+reserved: 0
 status: open
 ---
 Sample game. Edit or delete this in the admin panel.

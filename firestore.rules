@@ -10,13 +10,14 @@ service cloud.firestore {
             && request.auth.token.email_verified == true)
       );
     }
-    // A self-rating must stay provisional and at or below 4.4.
     function validSelfRating(d) {
       return !('rating' in d) || (
         d.rating is number && d.rating >= 0 && d.rating <= 4.4
         && d.get('ratingStatus', 'provisional') == 'provisional'
       );
     }
+    function gamePath(gid) { return /databases/$(database)/documents/games/$(gid); }
+    function bookingPath(gid) { return /databases/$(database)/documents/bookings/$(gid + '__' + request.auth.uid); }
 
     // Private player records: each player sees their own, admins see all.
     match /players/{uid} {
@@ -42,6 +43,62 @@ service cloud.firestore {
         && request.resource.data.rating >= 0
         && request.resource.data.rating <= 4.4;
       allow create, update, delete: if isAdmin();
+    }
+
+    // Is this mobile number registered? Lookup by exact number only, no listing.
+    match /members/{mid} {
+      allow get: if true;
+      allow create, update: if signedIn()
+        && request.auth.token.phone_number == '+' + mid
+        && request.resource.data.keys().hasOnly(['hasPassword'])
+        && request.resource.data.hasPassword is bool;
+      allow delete: if isAdmin();
+    }
+
+    // Live spot counter per game.
+    match /games/{gid} {
+      allow read: if true;
+      allow create: if signedIn()
+        && request.resource.data.keys().hasOnly(['spots', 'booked'])
+        && request.resource.data.spots is int
+        && request.resource.data.spots >= 1 && request.resource.data.spots <= 64
+        && request.resource.data.booked == 1
+        && !exists(bookingPath(gid)) && existsAfter(bookingPath(gid));
+      allow update: if signedIn()
+        && request.resource.data.keys().hasOnly(['spots', 'booked'])
+        && request.resource.data.spots is int
+        && request.resource.data.spots >= 1 && request.resource.data.spots <= 64
+        && (
+          // booking a spot
+          (request.resource.data.booked == resource.data.booked + 1
+            && request.resource.data.booked <= request.resource.data.spots
+            && !exists(bookingPath(gid)) && existsAfter(bookingPath(gid)))
+          ||
+          // cancelling a spot
+          (request.resource.data.booked == resource.data.booked - 1
+            && exists(bookingPath(gid)) && !existsAfter(bookingPath(gid)))
+        );
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Bookings: public (first name + initial only), one per player per game.
+    match /bookings/{bid} {
+      allow read: if true;
+      allow create: if signedIn()
+        && bid == request.resource.data.gameId + '__' + request.auth.uid
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status == 'reserved'
+        && request.resource.data.paid == false
+        && request.resource.data.name is string
+        && request.resource.data.name.size() <= 40
+        && getAfter(gamePath(request.resource.data.gameId)).data.booked
+           == (exists(gamePath(request.resource.data.gameId))
+               ? get(gamePath(request.resource.data.gameId)).data.booked : 0) + 1;
+      allow delete: if signedIn()
+        && resource.data.uid == request.auth.uid
+        && getAfter(gamePath(resource.data.gameId)).data.booked
+           == get(gamePath(resource.data.gameId)).data.booked - 1;
+      allow update, delete: if isAdmin();
     }
   }
 }

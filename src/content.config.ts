@@ -14,7 +14,8 @@ const games = defineCollection({
     level: z.string().default('All levels'),
     price: z.number().default(0),
     spots: z.number().default(16),
-    spotsLeft: z.number().optional(),
+    reserved: z.number().default(0),     // spots taken offline (cash/WhatsApp)
+    spotsLeft: z.number().optional(),  // old field, no longer used
     bookingLink: z.string().optional(),
     status: z.enum(['open', 'full', 'cancelled']).default('open'),
   }),

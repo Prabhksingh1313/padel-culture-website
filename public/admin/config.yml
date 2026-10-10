@@ -31,8 +31,8 @@ collections:
       - { label: Level, name: level, widget: string, default: All levels, hint: "e.g. Beginner, Intermediate (2.5+), All levels" }
       - { label: Price per player (₹), name: price, widget: number, value_type: int, default: 800 }
       - { label: Total spots, name: spots, widget: number, value_type: int, default: 16 }
-      - { label: Spots left, name: spotsLeft, widget: number, value_type: int, required: false }
-      - { label: Booking link (optional), name: bookingLink, widget: string, required: false, hint: "Hudle / Playo / Razorpay / Google Form. Leave empty to use WhatsApp." }
+      - { label: Spots taken offline, name: reserved, widget: number, value_type: int, default: 0, required: false, hint: "Spots you've filled outside the website (WhatsApp, cash). Online bookings are counted automatically." }
+      - { label: Booking link (optional), name: bookingLink, widget: string, required: false, hint: "Optional. If set, Book spot opens this link instead of the website cart." }
       - { label: Status, name: status, widget: select, options: [open, full, cancelled], default: open }
       - { label: Notes, name: body, widget: markdown, required: false }
 

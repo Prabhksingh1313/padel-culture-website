@@ -8,35 +8,57 @@ import fb from '../data/firebase.json';
 const waBase = site.whatsappNumber ? `https://wa.me/${site.whatsappNumber.replace(/\D/g, '')}` : '';
 const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURIComponent('Hi! I just signed up on padelculture.in. Please add me to the Padel Culture community.')}` : site.instagram);
 ---
-<Base title="Join Padel Culture | West Delhi padel community" description="Sign up with your mobile number to join Padel Culture's padel community in West Delhi.">
+<Base title="Log in or join | Padel Culture" description="Log in or join Padel Culture, West Delhi's padel community, with your mobile number.">
   <script type="application/json" id="fb-config" set:html={JSON.stringify(fb)} />
   <Header />
   <main class="wrap join-page">
     <div class="intro">
-      <p class="eyebrow">Join the community</p>
-      <h1>Sign up to play.</h1>
-      <p>Verify your mobile number once and you're on the Padel Culture list for games, beginner sessions and tournaments in West Delhi.</p>
-      <p class="have">Already registered? <a href="/login">Log in with your password</a></p>
+      <p class="eyebrow">Padel Culture members</p>
+      <h1>Log in or join.</h1>
+      <p>Enter your mobile number. If you're already a member, you'll log in with your password. If you're new, we'll sign you up and give you a Padel Culture Rating.</p>
     </div>
 
     <div class="panel" aria-live="polite">
-      <!-- Not configured yet -->
       <div id="s-off" hidden>
         <h2>Sign-up opens soon</h2>
         <p class="muted">Until then, message us on WhatsApp and we'll add you.</p>
         <a class="btn btn-solid" href={joinHref} target="_blank" rel="noopener">Message us on WhatsApp</a>
       </div>
 
-      <!-- Step 1: details -->
-      <form id="s-details" hidden novalidate>
-        <h2>Your details</h2>
-        <label for="f-name">Full name</label>
-        <input id="f-name" name="name" autocomplete="name" required maxlength="80" placeholder="e.g. Arjun Mehta" />
+      <!-- Step 1: mobile number -->
+      <form id="s-mobile" hidden novalidate>
+        <h2>Your mobile number</h2>
         <label for="f-phone">Mobile number</label>
         <div class="phone">
           <span>+91</span>
-          <input id="f-phone" name="phone" inputmode="numeric" autocomplete="tel-national" required maxlength="10" placeholder="98765 43210" />
+          <input id="f-phone" name="phone" inputmode="numeric" autocomplete="username" required maxlength="10" placeholder="98765 43210" />
         </div>
+        <p class="err" id="e-mobile" hidden></p>
+        <button class="btn btn-solid" id="b-continue" type="submit">Continue</button>
+      </form>
+
+      <!-- Registered: password -->
+      <form id="s-login" hidden novalidate>
+        <p class="eyebrow">Welcome back</p>
+        <h2>Enter your password</h2>
+        <p class="muted">For <strong class="t-phone"></strong> · <button type="button" class="linkbtn b-change">Change</button></p>
+        <label for="f-lpass">Password</label>
+        <div class="pass">
+          <input id="f-lpass" type="password" autocomplete="current-password" maxlength="32" />
+          <button type="button" class="linkbtn b-show" data-for="f-lpass">Show</button>
+        </div>
+        <p class="err" id="e-login" hidden></p>
+        <button class="btn btn-solid" id="b-login" type="submit">Log in</button>
+        <p class="links"><button type="button" class="linkbtn" id="b-forgot">Forgot password? Reset it with an OTP</button></p>
+      </form>
+
+      <!-- New: details -->
+      <form id="s-details" hidden novalidate>
+        <p class="eyebrow">New here</p>
+        <h2>Join Padel Culture</h2>
+        <p class="muted">For <strong class="t-phone"></strong> · <button type="button" class="linkbtn b-change">Change</button></p>
+        <label for="f-name">Full name</label>
+        <input id="f-name" name="name" autocomplete="name" required maxlength="80" placeholder="e.g. Arjun Mehta" />
         <label for="f-pin">PIN code</label>
         <input id="f-pin" name="pincode" inputmode="numeric" autocomplete="postal-code" required maxlength="6" placeholder="e.g. 110058" />
         <label class="check" for="f-consent">
@@ -47,33 +69,33 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
         <button class="btn btn-solid" id="b-send" type="submit">Send OTP</button>
       </form>
 
-      <!-- Step 2: code -->
+      <!-- OTP -->
       <form id="s-code" hidden novalidate>
         <h2>Enter the code</h2>
-        <p class="muted">We sent a 6-digit code by SMS to <strong id="t-phone"></strong>.</p>
+        <p class="muted">We sent a 6-digit code by SMS to <strong class="t-phone"></strong>.</p>
         <label for="f-code">OTP</label>
         <input id="f-code" class="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" />
         <p class="err" id="e-code" hidden></p>
         <button class="btn btn-solid" id="b-verify" type="submit">Verify</button>
-        <p class="links"><button type="button" class="linkbtn" id="b-change">Change number</button></p>
+        <p class="links"><button type="button" class="linkbtn b-change">Change number</button></p>
       </form>
 
-      <!-- Step 3: password -->
+      <!-- Password -->
       <form id="s-password" hidden novalidate>
         <p class="eyebrow">Number verified</p>
-        <h2>Create a password</h2>
+        <h2 id="t-passtitle">Create a password</h2>
         <p class="muted">Next time, log in with your mobile number and this password. No OTP needed.</p>
         <label for="f-pass">Password</label>
         <div class="pass">
           <input id="f-pass" type="password" autocomplete="new-password" minlength="6" maxlength="32" placeholder="At least 6 characters" />
-          <button type="button" class="linkbtn" id="b-showpass">Show</button>
+          <button type="button" class="linkbtn b-show" data-for="f-pass">Show</button>
         </div>
         <p class="muted hint">At least 6 characters. Numbers only is fine, e.g. a 6-digit PIN.</p>
         <p class="err" id="e-pass" hidden></p>
         <button class="btn btn-solid" id="b-pass" type="submit">Save password</button>
       </form>
 
-      <!-- Step 4: questionnaire -->
+      <!-- Questionnaire -->
       <div id="s-quiz" hidden>
         <p class="eyebrow">Your Padel Culture Rating · <span id="t-qnum">1</span> of <span id="t-qtotal">8</span></p>
         <div class="progress" aria-hidden="true"><i id="t-qbar"></i></div>
@@ -84,20 +106,20 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
         <p class="links"><button type="button" class="linkbtn" id="b-qback" hidden>Back</button></p>
       </div>
 
-      <!-- Step 5: result -->
+      <!-- Logged in: rating -->
       <div id="s-done" hidden>
         <p class="eyebrow" id="t-welcome">You're in</p>
         <div class="rating-card" id="t-card" hidden>
           <span class="rc-label">Your Padel Culture Rating</span>
           <span class="rc-tier" id="t-tier"></span>
-          <span class="rc-row"><span class="rc-num" id="t-rating"></span><span class="badge">Provisional</span></span>
+          <span class="rc-row"><span class="rc-num" id="t-rating"></span><span class="badge" id="t-status">Provisional</span></span>
           <span class="rc-blurb" id="t-blurb"></span>
         </div>
         <p class="muted" id="t-capnote" hidden>Víbora and Por Tres are earned on court. Play rated games with us to move up.</p>
-        <p class="muted">Your number <strong id="t-done-phone"></strong> is verified. Join our WhatsApp community, where new games are posted first.</p>
-        <a class="btn btn-solid" href="/leaderboard">See the leaderboard</a>
-        <a class="btn btn-ghost" href={joinHref} target="_blank" rel="noopener">Join on WhatsApp</a>
-        <p class="links"><button type="button" class="linkbtn" id="b-retake">Retake the questionnaire</button> · <button type="button" class="linkbtn" id="b-logout">Log out</button></p>
+        <p class="muted">Logged in as <strong id="t-done-phone"></strong>.</p>
+        <a class="btn btn-solid" href="/#games">Book a game</a>
+        <a class="btn btn-ghost" href="/leaderboard">See the leaderboard</a>
+        <p class="links"><a href={joinHref} target="_blank" rel="noopener">Join our WhatsApp community</a> · <button type="button" class="linkbtn" id="b-retake">Retake the questionnaire</button> · <button type="button" class="linkbtn" id="b-logout">Log out</button></p>
       </div>
 
       <p class="muted loading" id="s-loading">Loading…</p>
@@ -115,45 +137,134 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
       catch (e) { console.error(e); }
     }
     const $ = (id) => document.getElementById(id);
-    const steps = ['s-off', 's-details', 's-code', 's-password', 's-quiz', 's-done', 's-loading'];
-    const show = (id) => steps.forEach((s) => ($(s).hidden = s !== id));
+    const steps = ['s-off', 's-mobile', 's-login', 's-details', 's-code', 's-password', 's-quiz', 's-done', 's-loading'];
+    const show = (id) => { steps.forEach((s) => ($(s).hidden = s !== id)); const f = $(id).querySelector('input'); if (f && id !== 's-done') f.focus(); };
     const err = (id, msg) => { $(id).textContent = msg || ''; $(id).hidden = !msg; };
     const busy = (btn, on, label) => { btn.disabled = on; if (label) btn.textContent = label; };
+    const digits = (id, n) => $(id).addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, n); });
+    const pretty = (p) => '+91 ' + p.replace(/(\d{5})(\d{5})/, '$1 $2');
+
+    // After logging in, go back to where the player came from (e.g. the cart), if given.
+    const nextParam = new URLSearchParams(location.search).get('next');
+    const nextUrl = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : null;
+
+    let phone = '';
+    let pending = null;      // new member's details, saved after OTP
+    let resetting = false;   // forgot-password flow
     let confirmation = null;
-    let pending = null;
+    let me = { user: null, name: '', player: null };
 
-    let me = { user: null, name: '' };
+    // ---------- Step 1: mobile ----------
+    digits('f-phone', 10); digits('f-pin', 6); digits('f-code', 6);
+    $('s-mobile').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      phone = $('f-phone').value.trim();
+      if (!/^[6-9]\d{9}$/.test(phone)) return err('e-mobile', 'Enter a valid 10-digit Indian mobile number.');
+      err('e-mobile');
+      const btn = $('b-continue');
+      busy(btn, true, 'Checking…');
+      document.querySelectorAll('.t-phone').forEach((el) => (el.textContent = pretty(phone)));
+      try {
+        const member = await fb.lookupMember(phone);
+        if (member && member.hasPassword) show('s-login');
+        else if (member) { resetting = true; await sendOtp($('b-continue'), 'e-mobile'); }
+        else show('s-details');
+      } catch (ex) {
+        console.error(ex);
+        err('e-mobile', fb.friendlyError(ex));
+      } finally { busy(btn, false, 'Continue'); }
+    });
+    document.querySelectorAll('.b-change').forEach((b) => b.addEventListener('click', () => {
+      fb.resetVerifier(); resetting = false; pending = null;
+      ['e-login', 'e-details', 'e-code'].forEach((id) => err(id));
+      $('f-code').value = '';
+      show('s-mobile');
+    }));
+    document.querySelectorAll('.b-show').forEach((b) => b.addEventListener('click', () => {
+      const f = $(b.dataset.for);
+      f.type = f.type === 'password' ? 'text' : 'password';
+      b.textContent = f.type === 'password' ? 'Show' : 'Hide';
+    }));
 
-    async function finish(user) {
+    // ---------- Registered: password ----------
+    $('s-login').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const pw = $('f-lpass').value;
+      if (!pw) return err('e-login', 'Enter your password.');
+      err('e-login');
+      const btn = $('b-login');
+      busy(btn, true, 'Logging in…');
+      try {
+        const res = await fb.loginWithPassword(phone, pw);
+        if (nextUrl) { location.href = nextUrl; return; }
+        await enter(res.user);
+      } catch (ex) { console.error(ex); err('e-login', fb.friendlyError(ex)); }
+      finally { busy(btn, false, 'Log in'); }
+    });
+    $('b-forgot').addEventListener('click', async () => {
+      resetting = true;
+      err('e-login');
+      await sendOtp($('b-forgot'), 'e-login');
+    });
+
+    // ---------- New: details ----------
+    $('s-details').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = $('f-name').value.trim();
+      const pincode = $('f-pin').value.trim();
+      if (name.length < 2) return err('e-details', 'Please enter your name.');
+      if (!/^[1-9]\d{5}$/.test(pincode)) return err('e-details', 'Enter your 6-digit PIN code.');
+      if (!$('f-consent').checked) return err('e-details', 'Please tick the box to agree to be contacted.');
+      err('e-details');
+      pending = { name, pincode };
+      await sendOtp($('b-send'), 'e-details');
+    });
+
+    // ---------- OTP ----------
+    async function sendOtp(btn, errId) {
+      const label = btn.textContent;
+      busy(btn, true, 'Sending OTP…');
+      try {
+        confirmation = await fb.sendCode(phone, 'recaptcha');
+        show('s-code');
+      } catch (ex) {
+        console.error(ex);
+        fb.resetVerifier();
+        err(errId, fb.friendlyError(ex));
+      } finally { busy(btn, false, label); }
+    }
+    $('s-code').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const code = $('f-code').value.trim();
+      if (code.length !== 6) return err('e-code', 'Enter the 6-digit code from the SMS.');
+      err('e-code');
+      const btn = $('b-verify');
+      busy(btn, true, 'Verifying…');
+      try {
+        const res = await confirmation.confirm(code);
+        await afterOtp(res.user);
+      } catch (ex) { console.error(ex); err('e-code', fb.friendlyError(ex)); }
+      finally { busy(btn, false, 'Verify'); }
+    });
+
+    async function afterOtp(user) {
       let player = null;
       try { player = await fb.getPlayer(user.uid); } catch (e) {}
-      const fields = pending
-        ? { name: pending.name, pincode: pending.pincode, consent: true }
-        : {};
       if (pending || !player) {
-        if (!fields.name) fields.name = (player && player.name) || 'Player';
+        const fields = pending ? { name: pending.name, pincode: pending.pincode, consent: true } : { name: (player && player.name) || 'Player' };
         await fb.savePlayer(user, fields, !player);
+        player = { ...(player || {}), ...fields };
       } else {
         await fb.savePlayer(user, {}, false);
       }
-      me = { user, name: (pending && pending.name) || (player && player.name) || '' };
+      me = { user, name: player.name || '', player };
       pending = null;
-      me.player = player;
-      if (!fb.hasPassword(user)) { show('s-password'); $('f-pass').focus(); return; }
-      next();
-    }
-    function next() {
-      const player = me.player;
-      if (player && typeof player.rating === 'number') showResult(player.rating, player.tier, false);
-      else startQuiz();
+      await fb.markMember(user).catch((e) => console.error(e));
+      $('t-passtitle').textContent = fb.hasPassword(user) ? 'Set a new password' : 'Create a password';
+      show('s-password');
     }
 
-    // Password
-    $('b-showpass').addEventListener('click', () => {
-      const f = $('f-pass');
-      f.type = f.type === 'password' ? 'text' : 'password';
-      $('b-showpass').textContent = f.type === 'password' ? 'Show' : 'Hide';
-    });
+    // ---------- Password ----------
     $('s-password').addEventListener('submit', async (e) => {
       e.preventDefault();
       const pw = $('f-pass').value;
@@ -161,12 +272,32 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
       err('e-pass');
       const btn = $('b-pass');
       busy(btn, true, 'Saving…');
-      try { await fb.setPassword(me.user, pw); next(); }
-      catch (ex) { console.error(ex); err('e-pass', fb.friendlyError(ex)); }
+      try {
+        await fb.setPassword(me.user, pw);
+        await fb.markMember(fb.currentUser() || me.user).catch((e) => console.error(e));
+        resetting = false;
+        if (nextUrl && typeof (me.player && me.player.rating) === 'number') { location.href = nextUrl; return; }
+        next();
+      } catch (ex) { console.error(ex); err('e-pass', fb.friendlyError(ex)); }
       finally { busy(btn, false, 'Save password'); }
     });
 
-    // Questionnaire
+    // ---------- Logged in ----------
+    async function enter(user) {
+      let player = null;
+      try { player = await fb.getPlayer(user.uid); } catch (e) {}
+      me = { user, name: (player && player.name) || '', player };
+      if (!player) { phone = (user.phoneNumber || '').slice(-10); document.querySelectorAll('.t-phone').forEach((el) => (el.textContent = pretty(phone))); show('s-details'); return; }
+      if (!fb.hasPassword(user)) { show('s-password'); return; }
+      next();
+    }
+    function next() {
+      const player = me.player;
+      if (player && typeof player.rating === 'number') showResult(player.rating, player.tier, false, player.ratingStatus);
+      else startQuiz();
+    }
+
+    // ---------- Questionnaire ----------
     let qi = 0;
     let answers = {};
     function startQuiz() { qi = 0; answers = {}; renderQ(); show('s-quiz'); }
@@ -177,8 +308,7 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
       $('t-qbar').style.width = `${(qi / R.QUESTIONS.length) * 100}%`;
       $('t-question').textContent = q.q;
       $('b-qback').hidden = qi === 0;
-      const box = $('t-options');
-      box.replaceChildren(...q.a.map((label, i) => {
+      $('t-options').replaceChildren(...q.a.map((label, i) => {
         const b = document.createElement('button');
         b.type = 'button';
         b.className = 'option';
@@ -197,6 +327,8 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
       err('e-quiz');
       try {
         await fb.saveRating(me.user, R.displayName(me.name), result, answers);
+        me.player = { ...(me.player || {}), rating: result.rating, tier: result.tier };
+        if (nextUrl) { location.href = nextUrl; return; }
         showResult(result.rating, result.tier, result.capped);
       } catch (ex) {
         console.error(ex);
@@ -206,78 +338,39 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
     }
     $('b-qback').addEventListener('click', () => { if (qi > 0) { qi--; renderQ(); } });
 
-    function showResult(rating, tierName, capped) {
+    function showResult(rating, tierName, capped, status) {
       const t = R.TIERS.find((x) => x.name === tierName) || R.tierFor(rating);
       const first = me.name ? me.name.split(' ')[0] : '';
       $('t-welcome').textContent = first ? `You're in, ${first}` : "You're in";
       $('t-tier').textContent = t.name;
       $('t-rating').textContent = Number(rating).toFixed(1);
+      $('t-status').textContent = status === 'verified' ? 'Verified' : 'Provisional';
       $('t-blurb').textContent = t.blurb;
       $('t-card').hidden = false;
       $('t-capnote').hidden = !capped;
-      $('t-done-phone').textContent = me.user.phoneNumber;
+      $('t-done-phone').textContent = me.user.phoneNumber || '';
       show('s-done');
     }
     $('b-retake').addEventListener('click', startQuiz);
+    $('b-logout').addEventListener('click', async () => {
+      await fb.logout(); fb.resetVerifier();
+      $('f-phone').value = ''; $('f-lpass').value = '';
+      show('s-mobile');
+    });
 
+    // ---------- Start ----------
     if (!fb.ready || !R) show('s-off');
     else {
       let first = true;
       fb.watchUser(async (user) => {
         if (!first) return;
         first = false;
-        if (user) { try { await finish(user); } catch (e) { show('s-details'); } }
-        else show('s-details');
+        if (user) {
+          if (nextUrl && fb.hasPassword(user)) { location.href = nextUrl; return; }
+          try { await enter(user); } catch (e) { console.error(e); show('s-mobile'); }
+        } else show('s-mobile');
       });
     }
-
-    $('f-phone').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10); });
-    $('f-pin').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); });
-    $('f-code').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); });
-
-    $('s-details').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const name = $('f-name').value.trim();
-      const phone = $('f-phone').value.trim();
-      if (name.length < 2) return err('e-details', 'Please enter your name.');
-      if (!/^[6-9]\d{9}$/.test(phone)) return err('e-details', 'Enter a valid 10-digit Indian mobile number.');
-      const pincode = $('f-pin').value.trim();
-      if (!/^[1-9]\d{5}$/.test(pincode)) return err('e-details', 'Enter your 6-digit PIN code.');
-      if (!$('f-consent').checked) return err('e-details', 'Please tick the box to agree to be contacted.');
-      err('e-details');
-      const btn = $('b-send');
-      busy(btn, true, 'Sending…');
-      try {
-        confirmation = await fb.sendCode(phone, 'recaptcha');
-        pending = { name, pincode };
-        $('t-phone').textContent = '+91 ' + phone.replace(/(\d{5})(\d{5})/, '$1 $2');
-        show('s-code');
-        $('f-code').focus();
-      } catch (ex) {
-        console.error(ex);
-        fb.resetVerifier();
-        err('e-details', fb.friendlyError(ex));
-      } finally { busy(btn, false, 'Send OTP'); }
-    });
-
-    $('s-code').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const code = $('f-code').value.trim();
-      if (code.length !== 6) return err('e-code', 'Enter the 6-digit code from the SMS.');
-      err('e-code');
-      const btn = $('b-verify');
-      busy(btn, true, 'Verifying…');
-      try {
-        const res = await confirmation.confirm(code);
-        await finish(res.user);
-      } catch (ex) {
-        console.error(ex);
-        err('e-code', fb.friendlyError(ex));
-      } finally { busy(btn, false, 'Verify'); }
-    });
-
-    $('b-change').addEventListener('click', () => { fb.resetVerifier(); $('f-code').value = ''; err('e-code'); show('s-details'); });
-    $('b-logout').addEventListener('click', async () => { await fb.logout(); fb.resetVerifier(); show('s-details'); });
   </script>
 </Base>
 

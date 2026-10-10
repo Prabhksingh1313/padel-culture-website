@@ -8,7 +8,7 @@ format: Americano
 level: Intermediate (2.5+)
 price: 900
 spots: 8
-spotsLeft: 3
+reserved: 0
 status: open
 ---
 Sample game. Edit or delete this in the admin panel.

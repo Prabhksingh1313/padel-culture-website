@@ -6,7 +6,8 @@ import {
   EmailAuthProvider, linkWithCredential, signInWithEmailAndPassword, updatePassword,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
-  getFirestore, doc, getDoc, setDoc, collection, getDocs, query, orderBy, serverTimestamp,
+  getFirestore, doc, getDoc, setDoc, collection, getDocs, query, orderBy, where, serverTimestamp,
+  runTransaction,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const config = JSON.parse(document.getElementById('fb-config').textContent);
@@ -79,6 +80,16 @@ export function loginWithPassword(phone10, password) {
 }
 export function currentUser() { return ready ? auth.currentUser : null; }
 
+// Membership lookup: lets the Log in / Join page know whether a number is registered.
+const memberId = (phone) => '91' + String(phone || '').replace(/\D/g, '').slice(-10);
+export async function lookupMember(phone10) {
+  const snap = await getDoc(doc(db, 'members', memberId(phone10)));
+  return snap.exists() ? snap.data() : null;
+}
+export async function markMember(user) {
+  await setDoc(doc(db, 'members', memberId(user.phoneNumber)), { hasPassword: hasPassword(user) });
+}
+
 export async function getPlayer(uid) {
   const snap = await getDoc(doc(db, 'players', uid));
   return snap.exists() ? snap.data() : null;
@@ -119,6 +130,61 @@ export async function listPlayers() {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+// ---------- Bookings ----------
+// games/{gameId}: { spots, booked }  — live counter, public
+// bookings/{gameId}__{uid}: { gameId, uid, name, status, paid, createdAt } — public (first name + initial only)
+const bookingId = (gameId, uid) => `${gameId}__${uid}`;
+
+export async function listGameCounts() {
+  const snap = await getDocs(collection(db, 'games'));
+  const out = {};
+  snap.docs.forEach((d) => { out[d.id] = d.data(); });
+  return out;
+}
+
+export async function listMyBookings(uid) {
+  const snap = await getDocs(query(collection(db, 'bookings'), where('uid', '==', uid)));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export async function listGameBookings(gameId) {
+  const snap = await getDocs(query(collection(db, 'bookings'), where('gameId', '==', gameId)));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+export async function listAllBookings() {
+  const snap = await getDocs(collection(db, 'bookings'));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// Reserves one spot in a game. Throws { code: 'full' } or { code: 'already-booked' }.
+export async function bookGame(user, name, gameId, spots) {
+  const gRef = doc(db, 'games', gameId);
+  const bRef = doc(db, 'bookings', bookingId(gameId, user.uid));
+  await runTransaction(db, async (tx) => {
+    const g = await tx.get(gRef);
+    const b = await tx.get(bRef);
+    if (b.exists()) throw Object.assign(new Error('Already booked'), { code: 'already-booked' });
+    const booked = g.exists() ? g.data().booked || 0 : 0;
+    if (booked >= spots) throw Object.assign(new Error('Full'), { code: 'full' });
+    tx.set(gRef, { spots, booked: booked + 1 });
+    tx.set(bRef, { gameId, uid: user.uid, name, status: 'reserved', paid: false, createdAt: serverTimestamp() });
+  });
+}
+
+export async function cancelBooking(user, gameId) {
+  const gRef = doc(db, 'games', gameId);
+  const bRef = doc(db, 'bookings', bookingId(gameId, user.uid));
+  await runTransaction(db, async (tx) => {
+    const g = await tx.get(gRef);
+    const b = await tx.get(bRef);
+    if (!b.exists()) return;
+    const data = g.data() || { spots: 0, booked: 1 };
+    tx.set(gRef, { spots: data.spots, booked: Math.max(0, (data.booked || 1) - 1) });
+    tx.delete(bRef);
+  });
+}
+
 export function logout() { return ready ? signOut(auth) : Promise.resolve(); }
 
 export function friendlyError(e) {
@@ -131,6 +197,8 @@ export function friendlyError(e) {
   if (c.includes('captcha')) return 'Security check failed. Refresh the page and try again.';
   if (c.includes('permission-denied')) return 'You don\'t have access to this.';
   if (c.includes('invalid-credential') || c.includes('wrong-password') || c.includes('user-not-found') || c.includes('invalid-login')) return 'Wrong mobile number or password. Try again, or reset your password with an OTP.';
+  if (c === 'full') return 'Sorry, this game just filled up.';
+  if (c === 'already-booked') return 'You already have a spot in this game.';
   if (c.includes('weak-password')) return 'Use at least 6 characters. Numbers only is fine.';
   if (c.includes('email-already-in-use') || c.includes('credential-already-in-use')) return 'A password is already set for this number. Log in instead, or reset it with an OTP.';
   if (c.includes('requires-recent-login')) return 'For security, verify your number with an OTP again, then set your password.';

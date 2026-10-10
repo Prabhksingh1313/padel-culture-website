@@ -8,7 +8,7 @@ format: Coached Americano
 level: Beginner
 price: 700
 spots: 8
-spotsLeft: 8
+reserved: 0
 status: open
 ---
 Sample game. Edit or delete this in the admin panel.

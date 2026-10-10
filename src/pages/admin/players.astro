@@ -1,10 +1,21 @@
 ---
 import Base from '../../layouts/Base.astro';
 import fb from '../../data/firebase.json';
+import { getCollection } from 'astro:content';
+const tz = 'Asia/Kolkata';
+const games = (await getCollection('games')).map((g) => ({
+  id: g.id,
+  title: g.data.title,
+  when: new Intl.DateTimeFormat('en-IN', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }).format(g.data.date),
+  start: g.data.date.toISOString(),
+  spots: g.data.spots,
+  reserved: g.data.reserved || 0,
+}));
 ---
 <Base title="Players | Padel Culture admin" description="Padel Culture players list">
   <meta name="robots" content="noindex" slot="head" />
   <script type="application/json" id="fb-config" set:html={JSON.stringify(fb)} />
+  <script type="application/json" id="games-data" set:html={JSON.stringify(games)} />
   <main class="wrap admin">
     <header class="ahead">
       <a href="/" class="brand"><img src="/brand/padel-culture-logo-circle.svg" alt="" width="36" height="36" /> Padel Culture</a>
@@ -19,7 +30,7 @@ import fb from '../../data/firebase.json';
     <div class="login" id="s-login" hidden>
       <h1>Admin login</h1>
       <button class="btn btn-solid" id="b-google" type="button">Sign in with Google</button>
-      <a class="btn btn-ghost" href="/login?next=/admin/players">Log in with mobile and password</a>
+      <a class="btn btn-ghost" href="/join?next=/admin/players">Log in with mobile and password</a>
       <p class="muted or">or get an OTP on your admin mobile number</p>
       <form id="f-send" novalidate>
         <label for="f-phone">Admin mobile number</label>
@@ -53,6 +64,9 @@ import fb from '../../data/firebase.json';
           <tbody id="t-rows"></tbody>
         </table>
       </div>
+
+      <h2 class="bk-title">Bookings</h2>
+      <div id="t-bookings" class="bookings"></div>
     </section>
   </main>
 
@@ -91,6 +105,7 @@ import fb from '../../data/firebase.json';
       try {
         players = await fb.listPlayers();
         render();
+        try { renderBookings(await fb.listAllBookings()); } catch (e) { console.error(e); }
         show('s-list');
       } catch (e) {
         console.error(e);
@@ -102,6 +117,21 @@ import fb from '../../data/firebase.json';
         }
       }
     });
+
+    function renderBookings(bookings) {
+      const games = JSON.parse($('games-data').textContent).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+      const byUid = Object.fromEntries(players.map((p) => [p.id, p]));
+      const upcoming = games.filter((g) => Date.parse(g.start) + 3 * 3600e3 > Date.now());
+      $('t-bookings').innerHTML = upcoming.map((g) => {
+        const list = bookings.filter((b) => b.gameId === g.id);
+        const taken = list.length + g.reserved;
+        return `<div class="bk-game">
+          <h3>${esc(g.title)} <span class="muted">· ${esc(g.when)}</span></h3>
+          <p class="muted">${taken} of ${g.spots} spots taken (${list.length} online, ${g.reserved} offline)</p>
+          ${list.length ? `<ol>${list.map((b) => { const p = byUid[b.uid] || {}; return `<li>${esc(p.name || b.name)} · <a href="https://wa.me/${esc((p.phone || '').replace('+', ''))}" target="_blank" rel="noopener">${esc(p.phone || '')}</a> · ${b.paid ? 'Paid' : 'Payment due'}</li>`; }).join('')}</ol>` : '<p class="muted">No online bookings yet.</p>'}
+        </div>`;
+      }).join('') || '<p class="muted">No upcoming games.</p>';
+    }
 
     $('f-phone').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10); });
     let confirmation;
@@ -163,6 +193,13 @@ import fb from '../../data/firebase.json';
   .table-wrap :global(td a) { color: var(--sage); }
   .muted, .table-wrap :global(.muted) { color: var(--mist); }
   .err { color: #9B2C1F; }
+  .bk-title { font-size: 2rem; margin-top: 2rem; }
+  .bookings { display: grid; gap: 1rem; }
+  .bookings :global(.bk-game) { padding: 1.2rem; border: 1px solid var(--line); border-radius: 8px; background: var(--pine); display: grid; gap: 0.4rem; }
+  .bookings :global(h3) { font-size: 1.4rem; }
+  .bookings :global(ol) { margin: 0.3rem 0 0; padding-left: 1.3rem; display: grid; gap: 0.3rem; font-size: 0.9rem; }
+  .bookings :global(a) { color: var(--sage); }
+  .bookings :global(.muted) { color: var(--mist); font-size: 0.9rem; }
   .or { font-size: 0.85rem; padding-top: 0.6rem; border-top: 1px solid var(--line); margin-top: 0.4rem; }
   .denied { display: grid; gap: 1rem; justify-items: start; max-width: 36rem; }
   .linkbtn { background: none; border: 0; padding: 0; font: inherit; color: var(--sage); text-decoration: underline; cursor: pointer; }
