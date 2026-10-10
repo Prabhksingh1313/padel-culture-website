@@ -26,9 +26,26 @@ export function watchUser(cb) {
 }
 
 let verifier;
-export async function sendCode(phone10, buttonId) {
-  if (!verifier) verifier = new RecaptchaVerifier(auth, buttonId, { size: 'invisible' });
-  return signInWithPhoneNumber(auth, '+91' + phone10, verifier);
+export async function sendCode(phone10, containerId, retried = false) {
+  if (!verifier) {
+    // Use a fresh element each time so a reset check can render again.
+    const host = document.getElementById(containerId);
+    const el = document.createElement('div');
+    host.replaceChildren(el);
+    verifier = new RecaptchaVerifier(auth, el, { size: 'invisible' });
+    await verifier.render();
+  }
+  try {
+    return await signInWithPhoneNumber(auth, '+91' + phone10, verifier);
+  } catch (e) {
+    // A stale security check can cause internal errors: reset it and try once more.
+    resetVerifier();
+    const c = (e && e.code) || '';
+    if (!retried && (c.includes('internal-error') || c.includes('captcha'))) {
+      return sendCode(phone10, containerId, true);
+    }
+    throw e;
+  }
 }
 export function resetVerifier() {
   try { verifier && verifier.clear(); } catch (e) {}
