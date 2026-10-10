@@ -1,0 +1,19 @@
+---
+import site from '../data/site.json';
+---
+  <footer class="foot">
+    <div class="wrap foot-inner">
+      <span>© {new Date().getFullYear()} Padel Culture · West Delhi</span>
+      <span>
+        <a href={site.instagram} target="_blank" rel="noopener">{site.instagramHandle}</a>
+        {site.email && <span> · {site.email}</span>}
+      </span>
+      <a href="/privacy">Privacy</a>
+    </div>
+  </footer>
+
+<style>
+  .foot { border-top: 1px solid var(--line); }
+  .foot-inner { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.6rem; padding-block: 1.6rem; font-size: 0.8rem; color: var(--mist); }
+  .foot a { color: var(--sage); }
+</style>

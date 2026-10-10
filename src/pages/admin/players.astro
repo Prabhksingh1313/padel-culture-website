@@ -1,0 +1,135 @@
+---
+import Base from '../../layouts/Base.astro';
+import fb from '../../data/firebase.json';
+---
+<Base title="Players | Padel Culture admin" description="Padel Culture players list">
+  <meta name="robots" content="noindex" slot="head" />
+  <script type="application/json" id="fb-config" set:html={JSON.stringify(fb)} />
+  <main class="wrap admin">
+    <header class="ahead">
+      <a href="/" class="brand"><img src="/brand/padel-culture-logo-circle.svg" alt="" width="36" height="36" /> Padel Culture</a>
+      <span class="eyebrow">Players</span>
+      <button class="linkbtn" id="b-logout" hidden>Log out</button>
+    </header>
+
+    <p class="muted" id="s-loading">Loading…</p>
+    <p class="muted" id="s-off" hidden>Firebase isn't connected yet, so there are no players to show.</p>
+
+    <!-- Admin login -->
+    <div class="login" id="s-login" hidden>
+      <h1>Admin login</h1>
+      <form id="f-send" novalidate>
+        <label for="f-phone">Admin mobile number</label>
+        <div class="phone"><span>+91</span><input id="f-phone" inputmode="numeric" maxlength="10" autocomplete="tel-national" /></div>
+        <button class="btn btn-solid" id="b-send" type="submit">Send OTP</button>
+      </form>
+      <form id="f-code" hidden novalidate>
+        <label for="f-otp">OTP</label>
+        <input id="f-otp" inputmode="numeric" maxlength="6" autocomplete="one-time-code" />
+        <button class="btn btn-solid" id="b-verify" type="submit">Verify</button>
+      </form>
+      <p class="err" id="e-login" hidden></p>
+    </div>
+
+    <p class="err" id="s-denied" hidden>This number isn't an admin. Log out and sign in with the admin number.</p>
+
+    <!-- Players table -->
+    <section id="s-list" hidden>
+      <div class="bar">
+        <h1><span id="t-count">0</span> players</h1>
+        <input id="f-search" type="search" placeholder="Search name, number or area" aria-label="Search players" />
+        <button class="btn btn-ghost" id="b-csv" type="button">Download CSV</button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Name</th><th>Mobile</th><th>Area</th><th>Joined</th><th>Last login</th></tr></thead>
+          <tbody id="t-rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <script type="module" is:inline>
+    const cfg = JSON.parse(document.getElementById('fb-config').textContent);
+    let fb = { ready: false };
+    if (cfg.apiKey) {
+      try { fb = await import('/js/firebase.js'); }
+      catch (e) { console.error(e); }
+    }
+    const $ = (id) => document.getElementById(id);
+    const views = ['s-loading', 's-off', 's-login', 's-denied', 's-list'];
+    const show = (id) => views.forEach((v) => ($(v).hidden = v !== id));
+    const err = (msg) => { $('e-login').textContent = msg || ''; $('e-login').hidden = !msg; };
+    const fmt = (ts) => ts && ts.toDate ? ts.toDate().toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    let players = [];
+
+    function render() {
+      const q = $('f-search').value.trim().toLowerCase();
+      const rows = players.filter((p) => !q || [p.name, p.phone, p.area].join(' ').toLowerCase().includes(q));
+      $('t-count').textContent = rows.length;
+      $('t-rows').innerHTML = rows.map((p) => `<tr><td>${esc(p.name)}</td><td><a href="https://wa.me/${esc((p.phone || '').replace('+', ''))}" target="_blank" rel="noopener">${esc(p.phone)}</a></td><td>${esc(p.area)}</td><td>${fmt(p.createdAt)}</td><td>${fmt(p.lastLoginAt)}</td></tr>`).join('')
+        || '<tr><td colspan="5" class="muted">No players yet.</td></tr>';
+    }
+
+    if (!fb.ready) show('s-off');
+    else fb.watchUser(async (user) => {
+      $('b-logout').hidden = !user;
+      if (!user) return show('s-login');
+      if (!fb.adminPhones.includes(user.phoneNumber)) return show('s-denied');
+      try {
+        players = await fb.listPlayers();
+        render();
+        show('s-list');
+      } catch (e) { console.error(e); show('s-denied'); }
+    });
+
+    $('f-phone').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10); });
+    let confirmation;
+    $('f-send').addEventListener('submit', async (e) => {
+      e.preventDefault(); err();
+      try { confirmation = await fb.sendCode($('f-phone').value, 'b-send'); $('f-send').hidden = true; $('f-code').hidden = false; $('f-otp').focus(); }
+      catch (ex) { console.error(ex); fb.resetVerifier(); err(fb.friendlyError(ex)); }
+    });
+    $('f-code').addEventListener('submit', async (e) => {
+      e.preventDefault(); err();
+      try { await confirmation.confirm($('f-otp').value.trim()); }
+      catch (ex) { console.error(ex); err(fb.friendlyError(ex)); }
+    });
+    $('b-logout').addEventListener('click', () => fb.logout().then(() => location.reload()));
+    $('f-search').addEventListener('input', render);
+    $('b-csv').addEventListener('click', () => {
+      const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+      const lines = [['Name', 'Mobile', 'Area', 'Joined', 'Last login'].map(cell).join(',')]
+        .concat(players.map((p) => [p.name, p.phone, p.area, fmt(p.createdAt), fmt(p.lastLoginAt)].map(cell).join(',')));
+      const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
+      const a = Object.assign(document.createElement('a'), { href: url, download: `padel-culture-players-${new Date().toISOString().slice(0, 10)}.csv` });
+      a.click(); URL.revokeObjectURL(url);
+    });
+  </script>
+</Base>
+
+<style>
+  .admin { padding-block: 1.5rem 4rem; display: grid; gap: 1.5rem; }
+  .ahead { display: flex; align-items: center; gap: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
+  .brand { display: flex; align-items: center; gap: 0.6rem; text-decoration: none; font-family: var(--display); font-size: 1.3rem; }
+  .ahead .linkbtn { margin-left: auto; }
+  h1 { font-size: 2.2rem; }
+  .login { display: grid; gap: 0.8rem; max-width: 24rem; }
+  .login form { display: grid; gap: 0.6rem; }
+  label { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--olive); }
+  input { font: 400 1rem var(--body); color: var(--chalk); background: var(--pine); border: 1px solid var(--line); border-radius: 6px; padding: 0.7rem 0.9rem; width: 100%; min-width: 0; }
+  .phone { display: flex; }
+  .phone span { display: flex; align-items: center; padding-inline: 0.8rem; background: var(--moss); border: 1px solid var(--line); border-right: 0; border-radius: 6px 0 0 6px; }
+  .phone input { border-radius: 0 6px 6px 0; }
+  .bar { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; }
+  .bar input { flex: 1 1 14rem; width: auto; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--olive); background: var(--pine); }
+  td a { color: var(--sage); }
+  .muted { color: var(--mist); }
+  .err { color: #9B2C1F; }
+  .linkbtn { background: none; border: 0; padding: 0; font: inherit; color: var(--sage); text-decoration: underline; cursor: pointer; }
+</style>

@@ -1,5 +1,7 @@
 ---
 import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
 import { getCollection } from 'astro:content';
 import site from '../data/site.json';
 import venuesData from '../data/venues.json';
@@ -51,21 +53,7 @@ const jsonld = [
 ];
 ---
 <Base jsonld={jsonld}>
-  <header class="topbar">
-    <div class="wrap topbar-inner">
-      <a href="#top" class="brand" aria-label="Padel Culture home">
-        <img src="/brand/padel-culture-logo-circle.svg" alt="" width="40" height="40" />
-        <span>Padel Culture</span>
-      </a>
-      <nav aria-label="Main">
-        <a href="#games">Games</a>
-        <a href="#how">How it works</a>
-        <a href="#about">About</a>
-        <a href="#faq">FAQ</a>
-      </nav>
-      <a class="btn btn-solid topbar-cta" href={joinHref} target="_blank" rel="noopener">Join</a>
-    </div>
-  </header>
+  <Header joinHref={joinHref} />
 
   <main id="top">
     <!-- HERO -->
@@ -77,7 +65,7 @@ const jsonld = [
           <p class="lede">{site.heroText}</p>
           <div class="hero-cta">
             <a class="btn btn-solid" href="#games">See upcoming games</a>
-            <a class="btn btn-ghost" href={joinHref} target="_blank" rel="noopener">Join the community</a>
+            <a class="btn btn-ghost" href="/join">Join the community</a>
           </div>
         </div>
         <figure class="court" aria-label="Top-down diagram of a padel court, 20 by 10 metres">
@@ -243,22 +231,14 @@ const jsonld = [
         <h2>Games fill up on WhatsApp first.</h2>
         <p>Join the community to hear about new Americanos, beginner sessions and tournaments in West Delhi before they're posted anywhere else.</p>
         <div class="hero-cta">
-          <a class="btn btn-solid" href={joinHref} target="_blank" rel="noopener">Join the community</a>
+          <a class="btn btn-solid" href="/join">Join the community</a>
           <a class="btn btn-ghost" href={site.instagram} target="_blank" rel="noopener">Instagram {site.instagramHandle}</a>
         </div>
       </div>
     </section>
   </main>
 
-  <footer class="foot">
-    <div class="wrap foot-inner">
-      <span>© {new Date().getFullYear()} Padel Culture · West Delhi</span>
-      <span>
-        <a href={site.instagram} target="_blank" rel="noopener">{site.instagramHandle}</a>
-        {site.email && <span> · {site.email}</span>}
-      </span>
-    </div>
-  </footer>
+  <Footer />
 
   <script is:inline>
     // Hide games that have already started, so the board stays current between updates.
@@ -276,20 +256,6 @@ const jsonld = [
 </Base>
 
 <style>
-  /* Top bar */
-  .topbar {
-    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10;
-    background: color-mix(in srgb, var(--forest) 88%, transparent);
-    backdrop-filter: blur(10px); border-bottom: 1px solid var(--line);
-  }
-  .topbar-inner { display: flex; align-items: center; gap: 1.5rem; padding-block: 0.7rem; }
-  .brand { display: flex; align-items: center; gap: 0.7rem; text-decoration: none; font-family: var(--display); font-size: 1.35rem; color: var(--chalk); }
-  nav { display: flex; gap: 1.6rem; margin-left: auto; }
-  nav a { text-decoration: none; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--mist); }
-  nav a:hover { color: var(--chalk); }
-  .topbar-cta { padding: 0.6rem 1.1rem; }
-  @media (max-width: 760px) { nav { display: none; } .topbar-cta { margin-left: auto; } }
-
   /* Hero */
   .hero { padding-block: clamp(3rem, 8vw, 6rem) 2.5rem; }
   .hero-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: clamp(2rem, 5vw, 4rem); align-items: center; }
@@ -398,7 +364,4 @@ const jsonld = [
   .join p { color: var(--mist); max-width: 36rem; }
   .join .hero-cta { justify-content: center; }
 
-  .foot { border-top: 1px solid var(--line); }
-  .foot-inner { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.6rem; padding-block: 1.6rem; font-size: 0.8rem; color: var(--mist); }
-  .foot a { color: var(--sage); }
 </style>

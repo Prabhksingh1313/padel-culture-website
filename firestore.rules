@@ -1,0 +1,19 @@
+rules_version = '2';
+// Paste this into Firebase console → Firestore Database → Rules, then Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() {
+      return signedIn() && request.auth.token.phone_number in ['+918368715913'];
+    }
+    match /players/{uid} {
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.phone == request.auth.token.phone_number
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 80;
+      allow delete: if isAdmin();
+    }
+  }
+}

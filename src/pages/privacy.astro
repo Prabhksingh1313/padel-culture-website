@@ -1,0 +1,38 @@
+---
+import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import site from '../data/site.json';
+---
+<Base title="Privacy policy | Padel Culture" description="How Padel Culture uses the details you share when you sign up.">
+  <Header />
+  <main class="wrap doc">
+    <p class="eyebrow">Privacy</p>
+    <h1>Privacy policy</h1>
+    <p class="muted">Last updated 10 October 2026</p>
+
+    <h2>What we collect</h2>
+    <p>When you sign up we collect your name, your mobile number and, if you choose, the area you live in. We record when you signed up and when you last logged in.</p>
+
+    <h2>Why we collect it</h2>
+    <p>We use your details only to run Padel Culture: to add you to our community, tell you about games and events, organise players for games, and contact you about games you've booked.</p>
+
+    <h2>How we verify your number</h2>
+    <p>We send a one-time code (OTP) by SMS through Google Firebase to confirm the number belongs to you. Your details are stored in Google Firebase.</p>
+
+    <h2>Who can see it</h2>
+    <p>Only the Padel Culture organisers. We don't sell your details or share them with advertisers.</p>
+
+    <h2>Your choices</h2>
+    <p>You can ask us to update or delete your details at any time by messaging us on WhatsApp at +91 {site.whatsappNumber.replace(/^91/, '')} or on Instagram at {site.instagramHandle}. We'll delete them within 7 days.</p>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .doc { max-width: 44rem; display: grid; gap: 1rem; padding-block: clamp(3rem, 8vw, 5rem); }
+  .doc h1 { font-size: clamp(2.6rem, 6vw, 3.8rem); }
+  .doc h2 { font-size: 1.6rem; margin-top: 1rem; }
+  .doc p { color: var(--mist); }
+  .muted { font-size: 0.85rem; }
+</style>
