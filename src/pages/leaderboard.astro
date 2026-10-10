@@ -1,0 +1,182 @@
+---
+import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import fb from '../data/firebase.json';
+
+const tiers = [
+  { name: 'First Serve', range: '0.0 – 1.4' },
+  { name: 'Rally Maker', range: '1.5 – 2.4' },
+  { name: 'Wall Walker', range: '2.5 – 3.4' },
+  { name: 'Bandeja Crafter', range: '3.5 – 4.4' },
+  { name: 'Víbora', range: '4.5 – 5.4' },
+  { name: 'Por Tres', range: '5.5 – 7.0' },
+];
+---
+<Base title="Leaderboard | Padel Culture" description="Padel Culture Rating leaderboard for the West Delhi padel community.">
+  <script type="application/json" id="fb-config" set:html={JSON.stringify(fb)} />
+  <Header />
+  <main class="wrap lb">
+    <div class="lb-head">
+      <div class="lb-intro">
+        <p class="eyebrow">Padel Culture Rating</p>
+        <h1>Leaderboard</h1>
+        <p>Everyone starts with a provisional rating from a short questionnaire. Results in rated games then move you up or down, and a host check turns your rating Verified.</p>
+      </div>
+      <div class="me" id="t-me" hidden>
+        <span class="rc-label">Your rating</span>
+        <span class="rc-tier" id="t-me-tier"></span>
+        <span class="rc-row"><span class="rc-num" id="t-me-rating"></span><span class="badge" id="t-me-status"></span></span>
+        <span class="rc-rank" id="t-me-rank"></span>
+      </div>
+      <a class="cta" id="t-cta" href="/join">
+        <span class="rc-label">Not rated yet?</span>
+        <span class="cta-title">Get your rating</span>
+        <span class="cta-sub">Sign up and answer 8 quick questions →</span>
+      </a>
+    </div>
+
+    <ol class="ladder" aria-label="Rating tiers">
+      {tiers.map((t, i) => (
+        <li>
+          <button type="button" class="tier" data-tier={t.name} aria-pressed="false">
+            <span class="tier-step">{i + 1}</span>
+            <span class="tier-name">{t.name}</span>
+            <span class="tier-range">{t.range}</span>
+            <span class="tier-count" data-count={t.name}>0 players</span>
+          </button>
+        </li>
+      ))}
+    </ol>
+
+    <div class="board-bar">
+      <p class="muted" id="t-filter">Showing all players</p>
+      <button type="button" class="linkbtn" id="b-clear" hidden>Show all tiers</button>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th class="num">#</th><th>Player</th><th>Tier</th><th class="num">Rating</th><th>Status</th></tr></thead>
+        <tbody id="t-rows"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody>
+      </table>
+    </div>
+  </main>
+  <Footer />
+
+  <script type="module" is:inline>
+    const cfg = JSON.parse(document.getElementById('fb-config').textContent);
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    let fb = null;
+    let rows = [];
+    let filter = '';
+    let myId = null;
+
+    function render() {
+      const list = filter ? rows.filter((r) => r.tier === filter) : rows;
+      $('t-filter').textContent = filter ? `Showing ${filter} players` : `Showing all ${rows.length} players`;
+      $('b-clear').hidden = !filter;
+      document.querySelectorAll('.tier').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.tier === filter)));
+      $('t-rows').innerHTML = list.length
+        ? list.map((r) => `<tr class="${r.id === myId ? 'you' : ''}">
+            <td class="num">${r.rank}</td>
+            <td>${esc(r.name)}${r.id === myId ? ' <span class="you-tag">You</span>' : ''}</td>
+            <td><span class="chip">${esc(r.tier)}</span></td>
+            <td class="num">${Number(r.rating).toFixed(1)}</td>
+            <td><span class="status ${r.status === 'verified' ? 'ok' : ''}">${r.status === 'verified' ? 'Verified' : 'Provisional'}</span></td>
+          </tr>`).join('')
+        : `<tr><td colspan="5" class="muted">${rows.length ? 'No players in this tier yet.' : 'No ratings yet. <a href="/join">Be the first to get rated.</a>'}</td></tr>`;
+    }
+
+    document.querySelectorAll('.tier').forEach((b) => b.addEventListener('click', () => {
+      filter = filter === b.dataset.tier ? '' : b.dataset.tier;
+      render();
+    }));
+    $('b-clear').addEventListener('click', () => { filter = ''; render(); });
+
+    async function load() {
+      if (!cfg.apiKey) { rows = []; render(); return; }
+      try {
+        fb = await import('/js/firebase.js');
+        const data = await fb.listLeaderboard();
+        rows = data.map((r, i) => ({ ...r, rank: i + 1 }));
+        // Same rating shares a rank
+        rows.forEach((r, i) => { if (i > 0 && r.rating === rows[i - 1].rating) r.rank = rows[i - 1].rank; });
+        document.querySelectorAll('[data-count]').forEach((el) => {
+          const n = rows.filter((r) => r.tier === el.dataset.count).length;
+          el.textContent = `${n} player${n === 1 ? '' : 's'}`;
+        });
+        render();
+        fb.watchUser((user) => {
+          myId = user ? user.uid : null;
+          const mine = rows.find((r) => r.id === myId);
+          $('t-me').hidden = !mine;
+          $('t-cta').hidden = Boolean(mine);
+          if (mine) {
+            $('t-me-tier').textContent = mine.tier;
+            $('t-me-rating').textContent = Number(mine.rating).toFixed(1);
+            $('t-me-status').textContent = mine.status === 'verified' ? 'Verified' : 'Provisional';
+            $('t-me-rank').textContent = `Ranked #${mine.rank} of ${rows.length}`;
+          }
+          render();
+        });
+      } catch (e) {
+        console.error(e);
+        $('t-rows').innerHTML = `<tr><td colspan="5" class="muted">Couldn't load the leaderboard. Refresh to try again. (${esc(e.code || 'error')})</td></tr>`;
+      }
+    }
+    load();
+  </script>
+</Base>
+
+<style>
+  .lb { display: grid; gap: 2rem; padding-block: clamp(2.5rem, 7vw, 5rem); }
+  .lb-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 20rem); gap: 2rem; align-items: end; }
+  .lb-intro { display: grid; gap: 1rem; max-width: 36rem; }
+  .lb-intro h1 { font-size: clamp(2.8rem, 7vw, 4.6rem); }
+  .lb-intro p:last-child { color: var(--mist); }
+  .me, .cta { display: grid; gap: 0.35rem; padding: 1.4rem; border-radius: 10px; background: var(--chalk); color: var(--forest); text-decoration: none; }
+  .cta:hover { background: var(--sage); }
+  .rc-label { font-size: 0.68rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--moss); }
+  .rc-tier, .cta-title { font-family: var(--display); font-size: 2.3rem; line-height: 1; }
+  .rc-row { display: flex; align-items: center; gap: 0.8rem; }
+  .rc-num { font-family: var(--display); font-size: 1.7rem; font-variant-numeric: lining-nums tabular-nums; }
+  .rc-rank, .cta-sub { font-size: 0.85rem; color: var(--pine); }
+  .badge { font-size: 0.65rem; letter-spacing: 0.16em; text-transform: uppercase; padding: 0.25rem 0.55rem; border-radius: 999px; border: 1px solid currentColor; }
+
+  .ladder { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0.5rem; }
+  .tier {
+    width: 100%; height: 100%; display: grid; gap: 0.2rem; text-align: left; cursor: pointer;
+    padding: 0.9rem; border-radius: 8px; border: 1px solid var(--line); background: var(--pine); color: var(--chalk);
+    font: inherit; transition: background 0.15s, border-color 0.15s;
+  }
+  .tier:hover { border-color: var(--olive); }
+  .tier[aria-pressed="true"] { background: var(--chalk); color: var(--forest); border-color: var(--chalk); }
+  .tier:focus-visible { outline: 2px solid var(--olive); outline-offset: 2px; }
+  .tier-step { font-size: 0.65rem; letter-spacing: 0.2em; color: var(--olive); font-weight: 600; }
+  .tier[aria-pressed="true"] .tier-step { color: var(--moss); }
+  .tier-name { font-family: var(--display); font-size: 1.35rem; line-height: 1.1; }
+  .tier-range { font-size: 0.75rem; font-variant-numeric: tabular-nums; opacity: 0.8; }
+  .tier-count { font-size: 0.72rem; opacity: 0.75; }
+  @media (max-width: 900px) { .ladder { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 760px) { .lb-head { grid-template-columns: 1fr; } }
+  @media (max-width: 480px) { .ladder { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+  .board-bar { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: -1rem; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+  th, .table-wrap :global(td) { text-align: left; padding: 0.8rem 1rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  .table-wrap :global(tbody tr:last-child td) { border-bottom: 0; }
+  th { font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--olive); background: var(--pine); font-weight: 600; }
+  .table-wrap :global(.num) { text-align: right; font-variant-numeric: tabular-nums; width: 4rem; }
+  .table-wrap :global(td.num:first-child) { font-family: var(--display); font-size: 1.2rem; text-align: left; }
+  .table-wrap :global(tr.you td) { background: var(--moss); }
+  .table-wrap :global(.you-tag) { font-size: 0.62rem; letter-spacing: 0.14em; text-transform: uppercase; background: var(--chalk); color: var(--forest); padding: 0.15rem 0.45rem; border-radius: 999px; margin-left: 0.3rem; }
+  .table-wrap :global(.chip) { font-size: 0.72rem; letter-spacing: 0.06em; padding: 0.25rem 0.6rem; border-radius: 999px; background: var(--moss); }
+  .table-wrap :global(.status) { font-size: 0.7rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--mist); }
+  .table-wrap :global(.status.ok) { color: var(--sage); font-weight: 600; }
+  .muted { color: var(--mist); }
+  .table-wrap :global(.muted), .muted { color: var(--mist); }
+  .table-wrap :global(.muted a), .linkbtn { color: var(--sage); }
+  .linkbtn { background: none; border: 0; padding: 0; font: inherit; text-decoration: underline; cursor: pointer; }
+</style>

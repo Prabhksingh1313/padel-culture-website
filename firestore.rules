@@ -10,14 +10,38 @@ service cloud.firestore {
             && request.auth.token.email_verified == true)
       );
     }
+    // A self-rating must stay provisional and at or below 4.4.
+    function validSelfRating(d) {
+      return !('rating' in d) || (
+        d.rating is number && d.rating >= 0 && d.rating <= 4.4
+        && d.get('ratingStatus', 'provisional') == 'provisional'
+      );
+    }
+
+    // Private player records: each player sees their own, admins see all.
     match /players/{uid} {
       allow read: if isAdmin() || (signedIn() && request.auth.uid == uid);
       allow create, update: if signedIn() && request.auth.uid == uid
         && request.resource.data.phone == request.auth.token.phone_number
         && request.resource.data.name is string
         && request.resource.data.name.size() > 0
-        && request.resource.data.name.size() <= 80;
-      allow delete: if isAdmin();
+        && request.resource.data.name.size() <= 80
+        && validSelfRating(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    // Public leaderboard: first name + initial, tier and rating only.
+    match /leaderboard/{uid} {
+      allow read: if true;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 40
+        && request.resource.data.status == 'provisional'
+        && request.resource.data.rating is number
+        && request.resource.data.rating >= 0
+        && request.resource.data.rating <= 4.4;
+      allow create, update, delete: if isAdmin();
     }
   }
 }

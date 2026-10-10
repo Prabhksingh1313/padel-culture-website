@@ -48,7 +48,7 @@ import fb from '../../data/firebase.json';
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Name</th><th>Mobile</th><th>PIN code</th><th>Joined</th><th>Last login</th></tr></thead>
+          <thead><tr><th>Name</th><th>Mobile</th><th>PIN code</th><th>Rating</th><th>Joined</th><th>Last login</th></tr></thead>
           <tbody id="t-rows"></tbody>
         </table>
       </div>
@@ -72,10 +72,10 @@ import fb from '../../data/firebase.json';
 
     function render() {
       const q = $('f-search').value.trim().toLowerCase();
-      const rows = players.filter((p) => !q || [p.name, p.phone, p.pincode, p.area].join(' ').toLowerCase().includes(q));
+      const rows = players.filter((p) => !q || [p.name, p.phone, p.pincode, p.area, p.tier].join(' ').toLowerCase().includes(q));
       $('t-count').textContent = rows.length;
-      $('t-rows').innerHTML = rows.map((p) => `<tr><td>${esc(p.name)}</td><td><a href="https://wa.me/${esc((p.phone || '').replace('+', ''))}" target="_blank" rel="noopener">${esc(p.phone)}</a></td><td>${esc(p.pincode || p.area)}</td><td>${fmt(p.createdAt)}</td><td>${fmt(p.lastLoginAt)}</td></tr>`).join('')
-        || '<tr><td colspan="5" class="muted">No players yet.</td></tr>';
+      $('t-rows').innerHTML = rows.map((p) => `<tr><td>${esc(p.name)}</td><td><a href="https://wa.me/${esc((p.phone || '').replace('+', ''))}" target="_blank" rel="noopener">${esc(p.phone)}</a></td><td>${esc(p.pincode || p.area)}</td><td>${typeof p.rating === 'number' ? `${p.rating.toFixed(1)} · ${esc(p.tier)}` : '<span class="muted">Not rated</span>'}</td><td>${fmt(p.createdAt)}</td><td>${fmt(p.lastLoginAt)}</td></tr>`).join('')
+        || '<tr><td colspan="6" class="muted">No players yet.</td></tr>';
     }
 
     if (!fb.ready) show('s-off');
@@ -131,8 +131,8 @@ import fb from '../../data/firebase.json';
     $('f-search').addEventListener('input', render);
     $('b-csv').addEventListener('click', () => {
       const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-      const lines = [['Name', 'Mobile', 'PIN code', 'Joined', 'Last login'].map(cell).join(',')]
-        .concat(players.map((p) => [p.name, p.phone, p.pincode || p.area, fmt(p.createdAt), fmt(p.lastLoginAt)].map(cell).join(',')));
+      const lines = [['Name', 'Mobile', 'PIN code', 'Rating', 'Tier', 'Joined', 'Last login'].map(cell).join(',')]
+        .concat(players.map((p) => [p.name, p.phone, p.pincode || p.area, p.rating ?? '', p.tier ?? '', fmt(p.createdAt), fmt(p.lastLoginAt)].map(cell).join(',')));
       const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
       const a = Object.assign(document.createElement('a'), { href: url, download: `padel-culture-players-${new Date().toISOString().slice(0, 10)}.csv` });
       a.click(); URL.revokeObjectURL(url);
@@ -157,10 +157,10 @@ import fb from '../../data/firebase.json';
   .bar input { flex: 1 1 14rem; width: auto; }
   .table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; }
   table { width: 100%; border-collapse: collapse; font-size: 0.9rem; font-variant-numeric: tabular-nums; }
-  th, td { text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th, .table-wrap :global(td) { text-align: left; padding: 0.75rem 1rem; border-bottom: 1px solid var(--line); white-space: nowrap; }
   th { font-size: 0.7rem; letter-spacing: 0.16em; text-transform: uppercase; color: var(--olive); background: var(--pine); }
-  td a { color: var(--sage); }
-  .muted { color: var(--mist); }
+  .table-wrap :global(td a) { color: var(--sage); }
+  .muted, .table-wrap :global(.muted) { color: var(--mist); }
   .err { color: #9B2C1F; }
   .or { font-size: 0.85rem; padding-top: 0.6rem; border-top: 1px solid var(--line); margin-top: 0.4rem; }
   .denied { display: grid; gap: 1rem; justify-items: start; max-width: 36rem; }

@@ -71,6 +71,30 @@ export async function savePlayer(user, fields, isNew) {
   await setDoc(doc(db, 'players', user.uid), data, { merge: true });
 }
 
+// Saves a questionnaire result to the private player record and the public leaderboard.
+export async function saveRating(user, name, result, answers) {
+  await setDoc(doc(db, 'players', user.uid), {
+    phone: user.phoneNumber,
+    rating: result.rating,
+    tier: result.tier,
+    ratingStatus: 'provisional',
+    answers,
+    ratedAt: serverTimestamp(),
+  }, { merge: true });
+  await setDoc(doc(db, 'leaderboard', user.uid), {
+    name,
+    rating: result.rating,
+    tier: result.tier,
+    status: 'provisional',
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function listLeaderboard() {
+  const snap = await getDocs(query(collection(db, 'leaderboard'), orderBy('rating', 'desc')));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
 export async function listPlayers() {
   const snap = await getDocs(query(collection(db, 'players'), orderBy('createdAt', 'desc')));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));

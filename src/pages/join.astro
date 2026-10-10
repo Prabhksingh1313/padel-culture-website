@@ -57,13 +57,31 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
         <p class="links"><button type="button" class="linkbtn" id="b-change">Change number</button></p>
       </form>
 
-      <!-- Step 3: done -->
+      <!-- Step 3: questionnaire -->
+      <div id="s-quiz" hidden>
+        <p class="eyebrow">Your Padel Culture Rating · <span id="t-qnum">1</span> of <span id="t-qtotal">8</span></p>
+        <div class="progress" aria-hidden="true"><i id="t-qbar"></i></div>
+        <h2 id="t-question"></h2>
+        <p class="muted hint">Answer for a normal game, not your best day.</p>
+        <div class="options" id="t-options" role="radiogroup" aria-labelledby="t-question"></div>
+        <p class="err" id="e-quiz" hidden></p>
+        <p class="links"><button type="button" class="linkbtn" id="b-qback" hidden>Back</button></p>
+      </div>
+
+      <!-- Step 4: result -->
       <div id="s-done" hidden>
-        <p class="eyebrow">You're in</p>
-        <h2 id="t-welcome">Welcome to Padel Culture.</h2>
-        <p class="muted">Your number <strong id="t-done-phone"></strong> is verified. Last step: join our WhatsApp community, where new games are posted first.</p>
-        <a class="btn btn-solid" href={joinHref} target="_blank" rel="noopener">Join on WhatsApp</a>
-        <p class="links"><a href="/#games">See upcoming games</a> · <button type="button" class="linkbtn" id="b-logout">Log out</button></p>
+        <p class="eyebrow" id="t-welcome">You're in</p>
+        <div class="rating-card" id="t-card" hidden>
+          <span class="rc-label">Your Padel Culture Rating</span>
+          <span class="rc-tier" id="t-tier"></span>
+          <span class="rc-row"><span class="rc-num" id="t-rating"></span><span class="badge">Provisional</span></span>
+          <span class="rc-blurb" id="t-blurb"></span>
+        </div>
+        <p class="muted" id="t-capnote" hidden>Víbora and Por Tres are earned on court. Play rated games with us to move up.</p>
+        <p class="muted">Your number <strong id="t-done-phone"></strong> is verified. Join our WhatsApp community, where new games are posted first.</p>
+        <a class="btn btn-solid" href="/leaderboard">See the leaderboard</a>
+        <a class="btn btn-ghost" href={joinHref} target="_blank" rel="noopener">Join on WhatsApp</a>
+        <p class="links"><button type="button" class="linkbtn" id="b-retake">Retake the questionnaire</button> · <button type="button" class="linkbtn" id="b-logout">Log out</button></p>
       </div>
 
       <p class="muted loading" id="s-loading">Loading…</p>
@@ -75,17 +93,20 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
   <script type="module" is:inline>
     const cfg = JSON.parse(document.getElementById('fb-config').textContent);
     let fb = { ready: false };
+    let R = null;
     if (cfg.apiKey) {
-      try { fb = await import('/js/firebase.js'); }
+      try { fb = await import('/js/firebase.js'); R = await import('/js/rating.js'); }
       catch (e) { console.error(e); }
     }
     const $ = (id) => document.getElementById(id);
-    const steps = ['s-off', 's-details', 's-code', 's-done', 's-loading'];
+    const steps = ['s-off', 's-details', 's-code', 's-quiz', 's-done', 's-loading'];
     const show = (id) => steps.forEach((s) => ($(s).hidden = s !== id));
     const err = (id, msg) => { $(id).textContent = msg || ''; $(id).hidden = !msg; };
     const busy = (btn, on, label) => { btn.disabled = on; if (label) btn.textContent = label; };
     let confirmation = null;
     let pending = null;
+
+    let me = { user: null, name: '' };
 
     async function finish(user) {
       let player = null;
@@ -99,14 +120,67 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
       } else {
         await fb.savePlayer(user, {}, false);
       }
-      const name = (pending && pending.name) || (player && player.name) || '';
-      $('t-welcome').textContent = name ? `Welcome, ${name.split(' ')[0]}.` : 'Welcome to Padel Culture.';
-      $('t-done-phone').textContent = user.phoneNumber;
+      me = { user, name: (pending && pending.name) || (player && player.name) || '' };
       pending = null;
-      show('s-done');
+      if (player && typeof player.rating === 'number') showResult(player.rating, player.tier, false);
+      else startQuiz();
     }
 
-    if (!fb.ready) show('s-off');
+    // Questionnaire
+    let qi = 0;
+    let answers = {};
+    function startQuiz() { qi = 0; answers = {}; renderQ(); show('s-quiz'); }
+    function renderQ() {
+      const q = R.QUESTIONS[qi];
+      $('t-qnum').textContent = qi + 1;
+      $('t-qtotal').textContent = R.QUESTIONS.length;
+      $('t-qbar').style.width = `${(qi / R.QUESTIONS.length) * 100}%`;
+      $('t-question').textContent = q.q;
+      $('b-qback').hidden = qi === 0;
+      const box = $('t-options');
+      box.replaceChildren(...q.a.map((label, i) => {
+        const b = document.createElement('button');
+        b.type = 'button';
+        b.className = 'option';
+        b.setAttribute('role', 'radio');
+        b.setAttribute('aria-checked', String(answers[q.id] === i));
+        b.textContent = label;
+        b.addEventListener('click', () => choose(q.id, i));
+        return b;
+      }));
+    }
+    async function choose(id, value) {
+      answers[id] = value;
+      if (qi < R.QUESTIONS.length - 1) { qi++; renderQ(); return; }
+      const result = R.score(answers);
+      $('t-options').querySelectorAll('button').forEach((b) => (b.disabled = true));
+      err('e-quiz');
+      try {
+        await fb.saveRating(me.user, R.displayName(me.name), result, answers);
+        showResult(result.rating, result.tier, result.capped);
+      } catch (ex) {
+        console.error(ex);
+        err('e-quiz', 'We couldn\'t save your rating. Check your connection and tap your answer again. ' + (ex.code ? `(${ex.code})` : ''));
+        $('t-options').querySelectorAll('button').forEach((b) => (b.disabled = false));
+      }
+    }
+    $('b-qback').addEventListener('click', () => { if (qi > 0) { qi--; renderQ(); } });
+
+    function showResult(rating, tierName, capped) {
+      const t = R.TIERS.find((x) => x.name === tierName) || R.tierFor(rating);
+      const first = me.name ? me.name.split(' ')[0] : '';
+      $('t-welcome').textContent = first ? `You're in, ${first}` : "You're in";
+      $('t-tier').textContent = t.name;
+      $('t-rating').textContent = Number(rating).toFixed(1);
+      $('t-blurb').textContent = t.blurb;
+      $('t-card').hidden = false;
+      $('t-capnote').hidden = !capped;
+      $('t-done-phone').textContent = me.user.phoneNumber;
+      show('s-done');
+    }
+    $('b-retake').addEventListener('click', startQuiz);
+
+    if (!fb.ready || !R) show('s-off');
     else {
       let first = true;
       fb.watchUser(async (user) => {
@@ -196,5 +270,29 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
   .links { font-size: 0.85rem; color: var(--mist); }
   .links a, .linkbtn { color: var(--sage); }
   .linkbtn { background: none; border: 0; padding: 0; font: inherit; text-decoration: underline; cursor: pointer; }
+  .progress { height: 4px; background: var(--moss); border-radius: 2px; overflow: hidden; }
+  .progress i { display: block; height: 100%; background: var(--olive); transition: width 0.3s; }
+  .hint { font-size: 0.85rem; }
+  .options { display: grid; gap: 0.55rem; margin-top: 0.4rem; }
+  .options :global(.option) {
+    text-align: left; font: 500 0.95rem/1.4 var(--body); color: var(--chalk);
+    background: var(--forest); border: 1px solid var(--line); border-radius: 8px;
+    padding: 0.85rem 1rem; cursor: pointer; transition: background 0.15s, border-color 0.15s;
+  }
+  .options :global(.option:hover) { background: var(--moss); border-color: var(--olive); }
+  .options :global(.option[aria-checked="true"]) { border-color: var(--olive); background: var(--moss); }
+  .options :global(.option:focus-visible) { outline: 2px solid var(--olive); outline-offset: 2px; }
+  .options :global(.option:disabled) { opacity: 0.6; cursor: progress; }
+  .rating-card {
+    display: grid; gap: 0.35rem; padding: 1.4rem; border-radius: 10px;
+    background: var(--chalk); color: var(--forest);
+  }
+  .rc-label { font-size: 0.68rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--moss); }
+  .rc-tier { font-family: var(--display); font-size: 2.6rem; line-height: 1; }
+  .rc-row { display: flex; align-items: center; gap: 0.8rem; }
+  .rc-num { font-family: var(--display); font-size: 1.8rem; font-variant-numeric: lining-nums tabular-nums; }
+  .rc-blurb { font-size: 0.9rem; color: var(--pine); }
+  .badge { font-size: 0.65rem; letter-spacing: 0.16em; text-transform: uppercase; padding: 0.25rem 0.55rem; border-radius: 999px; border: 1px solid currentColor; }
+  #s-done .btn { margin-top: 0.3rem; }
   @media (max-width: 820px) { .join-page { grid-template-columns: 1fr; } }
 </style>
