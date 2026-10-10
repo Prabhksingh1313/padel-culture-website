@@ -6,7 +6,7 @@ service cloud.firestore {
     function isAdmin() {
       return signedIn() && (
         request.auth.token.phone_number in ['+918368715913', '+918800571228']
-        || (request.auth.token.email == 'prabhkiratsingh1313@gmail.com'
+        || (request.auth.token.email in ['prabhkiratsingh1313@gmail.com', 'hello@padelculture.in']
             && request.auth.token.email_verified == true)
       );
     }
