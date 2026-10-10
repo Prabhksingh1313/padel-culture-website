@@ -144,6 +144,7 @@ const jsonld = [
                     </>
                   )}
                   <span class="booked-note" hidden>You're booked ✓</span>
+                  <button type="button" class="linkbtn b-leave" data-id={g.id} hidden>Remove me from this game</button>
                 </div>
               </li>
             );
@@ -268,6 +269,11 @@ const jsonld = [
         const note = r.querySelector('.booked-note');
         const isMine = mine.has(id);
         if (note) note.hidden = !isMine;
+        const leave = r.querySelector('.b-leave');
+        if (leave) {
+          leave.hidden = !isMine;
+          if (!isMine) { leave.dataset.confirming = ''; leave.disabled = false; leave.textContent = 'Remove me from this game'; }
+        }
         if (add) {
           add.hidden = full || isMine;
           add.textContent = inCart.has(id) ? 'In cart · View' : 'Book spot';
@@ -295,7 +301,31 @@ const jsonld = [
         const counts = await fb.listGameCounts();
         Object.entries(counts).forEach(([id, g]) => { booked[id] = g.booked || 0; });
         paint();
+        let me = null;
+        document.querySelectorAll('.b-leave').forEach((b) => b.addEventListener('click', async () => {
+          if (!me) return;
+          if (b.dataset.confirming !== '1') {
+            b.dataset.confirming = '1';
+            b.textContent = 'Tap again to confirm';
+            setTimeout(() => { if (b.dataset.confirming === '1' && !b.disabled) { b.dataset.confirming = ''; b.textContent = 'Remove me from this game'; } }, 5000);
+            return;
+          }
+          b.disabled = true;
+          b.textContent = 'Removing…';
+          try {
+            await fb.cancelBooking(me, b.dataset.id);
+            mine.delete(b.dataset.id);
+            booked[b.dataset.id] = Math.max(0, (booked[b.dataset.id] || 1) - 1);
+            paint();
+          } catch (e) {
+            console.error(e);
+            b.disabled = false;
+            b.dataset.confirming = '';
+            b.textContent = 'Couldn\'t remove you. Try again';
+          }
+        }));
         fb.watchUser(async (user) => {
+          me = user;
           mine.clear();
           if (user) {
             try { (await fb.listMyBookings(user.uid)).forEach((b) => mine.add(b.gameId)); } catch (e) { console.error(e); }
@@ -359,6 +389,8 @@ const jsonld = [
   .book { display: grid; gap: 0.6rem; justify-items: end; }
   .price { font-family: var(--display); font-size: 1.7rem; font-variant-numeric: lining-nums; }
   .fixture.full .what h3, .fixture.full .price { color: var(--mist); }
+  .b-leave { background: none; border: 0; padding: 0; font: inherit; font-size: 0.8rem; color: var(--sage); text-decoration: underline; cursor: pointer; }
+  .b-leave:disabled { opacity: 0.6; cursor: progress; }
   .booked-note { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--sage); }
   .board-empty { padding-block: 2rem; color: var(--mist); }
   .board-empty a { color: var(--sage); }
