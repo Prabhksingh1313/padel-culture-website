@@ -16,7 +16,7 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
     <meta name="description" content={description} />
     <link rel="canonical" href={canonical} />
     <link rel="icon" href="/brand/padel-culture-logo-circle.svg" type="image/svg+xml" />
-    <meta name="theme-color" content="#0B1F14" />
+    <meta name="theme-color" content="#E3EDD6" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:type" content="website" />
@@ -35,18 +35,18 @@ const canonical = new URL(Astro.url.pathname, Astro.site);
 <style is:global>
   /* Layout: one long page, a fixture board at its centre; court-line motif in olive hairlines. */
   :root {
-    --forest: #0B1F14;   /* brand ground */
-    --pine: #13301F;     /* raised surfaces */
-    --moss: #1C3D29;     /* hover / borders */
-    --olive: #7E9358;    /* brand accent */
-    --sage: #B7C595;     /* light accent for text on dark */
-    --chalk: #ECEFE3;    /* primary text */
-    --mist: #A9B4A0;     /* secondary text */
-    --line: rgba(126, 147, 88, 0.35);
+    --forest: #E3EDD6;   /* page ground: pastel court green */
+    --pine: #D5E3C4;     /* alternate sections */
+    --moss: #C3D6AD;     /* chips, hover fills */
+    --olive: #5E7340;    /* brand olive, deepened for contrast on pastel */
+    --sage: #2F4A22;     /* links, hover, net & ball */
+    --chalk: #0B1F14;    /* primary text: brand forest */
+    --mist: #4A5B43;     /* secondary text */
+    --line: rgba(94, 115, 64, 0.35);
     --display: 'Cormorant Garamond', 'Cormorant', Georgia, 'Times New Roman', serif;
     --body: 'Montserrat', 'Helvetica Neue', Arial, sans-serif;
     --wrap: 72rem;
-    color-scheme: dark;
+    color-scheme: light;
   }
   *, *::before, *::after { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
