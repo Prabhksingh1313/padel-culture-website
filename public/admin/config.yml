@@ -1,7 +1,7 @@
 # Admin panel for padelculture website. Open yourdomain/admin and log in with GitHub.
 backend:
   name: github
-  repo: Prabhksingh1313/padel-culture-website
+  repo: padelculture/padel-culture-website
   branch: main
   base_url: https://www.padelculture.in   # <- your live domain (no trailing slash)
   auth_endpoint: api/auth
