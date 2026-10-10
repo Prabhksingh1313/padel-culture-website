@@ -27,7 +27,7 @@ collections:
       - { label: Venue, name: venue, widget: string }
       - { label: Area, name: area, widget: string, default: West Delhi }
       - { label: Google Maps link, name: mapLink, widget: string, required: false }
-      - { label: Format, name: format, widget: select, options: [Americano, Mexicano, Coached Americano, Tournament, Open play], default: Americano }
+      - { label: Format, name: format, widget: select, options: [Americano, Mexicano, King of the Court, Team Americano, Mixed Americano, Coached Americano, Box League, Tournament, Open play], default: Americano }
       - { label: Level, name: level, widget: string, default: All levels, hint: "e.g. Beginner, Intermediate (2.5+), All levels" }
       - { label: Price per player (₹), name: price, widget: number, value_type: int, default: 800 }
       - { label: Total spots, name: spots, widget: number, value_type: int, default: 16 }
