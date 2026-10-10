@@ -2,6 +2,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
 import {
   getAuth, onAuthStateChanged, RecaptchaVerifier, signInWithPhoneNumber, signOut,
+  GoogleAuthProvider, signInWithPopup,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
   getFirestore, doc, getDoc, setDoc, collection, getDocs, query, orderBy, serverTimestamp,
@@ -10,6 +11,13 @@ import {
 const config = JSON.parse(document.getElementById('fb-config').textContent);
 export const ready = Boolean(config.apiKey);
 export const adminPhones = config.adminPhones || [];
+export const adminEmails = config.adminEmails || [];
+export function isAdmin(user) {
+  return Boolean(user) && (adminPhones.includes(user.phoneNumber) || (user.email && adminEmails.includes(user.email.toLowerCase())));
+}
+export function signInWithGoogle() {
+  return signInWithPopup(auth, new GoogleAuthProvider());
+}
 
 let app, auth, db;
 if (ready) {

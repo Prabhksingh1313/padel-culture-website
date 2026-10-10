@@ -18,6 +18,8 @@ import fb from '../../data/firebase.json';
     <!-- Admin login -->
     <div class="login" id="s-login" hidden>
       <h1>Admin login</h1>
+      <button class="btn btn-solid" id="b-google" type="button">Sign in with Google</button>
+      <p class="muted or">or use your admin mobile number</p>
       <form id="f-send" novalidate>
         <label for="f-phone">Admin mobile number</label>
         <div class="phone"><span>+91</span><input id="f-phone" inputmode="numeric" maxlength="10" autocomplete="tel-national" /></div>
@@ -81,8 +83,9 @@ import fb from '../../data/firebase.json';
       $('b-logout').hidden = !user;
       if (!user) return show('s-login');
       const denied = (msg) => { $('t-denied').textContent = msg; show('s-denied'); };
-      if (!fb.adminPhones.includes(user.phoneNumber)) {
-        return denied(`You're logged in as ${user.phoneNumber}, which isn't an admin number.`);
+      const who = user.email || user.phoneNumber;
+      if (!fb.isAdmin(user)) {
+        return denied(`You're logged in as ${who}, which isn't an admin account.`);
       }
       try {
         players = await fb.listPlayers();
@@ -92,7 +95,7 @@ import fb from '../../data/firebase.json';
         console.error(e);
         const c = (e && e.code) || '';
         if (c.includes('permission-denied')) {
-          denied(`You're logged in as ${user.phoneNumber}, but the database rules in Firebase don't list this number as an admin yet. Update and publish the Firestore rules, then refresh. (permission-denied)`);
+          denied(`You're logged in as ${who}, but the database rules in Firebase don't list this account as an admin yet. Update and publish the Firestore rules, then refresh. (permission-denied)`);
         } else {
           denied(`Couldn't load players. Refresh the page and try again. (${c || 'unknown'})`);
         }
@@ -112,6 +115,18 @@ import fb from '../../data/firebase.json';
       catch (ex) { console.error(ex); err(fb.friendlyError(ex)); }
     });
     $('b-logout').addEventListener('click', () => fb.logout().then(() => location.reload()));
+    $('b-google').addEventListener('click', async () => {
+      err();
+      try { await fb.signInWithGoogle(); }
+      catch (ex) {
+        console.error(ex);
+        const c = (ex && ex.code) || '';
+        if (c.includes('popup-closed')) return;
+        if (c.includes('operation-not-allowed')) return err('Google sign-in isn\'t switched on in Firebase yet. (operation-not-allowed)');
+        if (c.includes('popup-blocked')) return err('Your browser blocked the sign-in window. Allow pop-ups for this site and try again.');
+        err(fb.friendlyError(ex));
+      }
+    });
     $('b-switch').addEventListener('click', () => fb.logout().then(() => location.reload()));
     $('f-search').addEventListener('input', render);
     $('b-csv').addEventListener('click', () => {
@@ -147,6 +162,7 @@ import fb from '../../data/firebase.json';
   td a { color: var(--sage); }
   .muted { color: var(--mist); }
   .err { color: #9B2C1F; }
+  .or { font-size: 0.85rem; padding-top: 0.6rem; border-top: 1px solid var(--line); margin-top: 0.4rem; }
   .denied { display: grid; gap: 1rem; justify-items: start; max-width: 36rem; }
   .linkbtn { background: none; border: 0; padding: 0; font: inherit; color: var(--sage); text-decoration: underline; cursor: pointer; }
 </style>

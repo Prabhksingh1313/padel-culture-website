@@ -5,5 +5,11 @@
   "storageBucket": "padel-culture.firebasestorage.app",
   "messagingSenderId": "197723097907",
   "appId": "1:197723097907:web:2a6feb9f55cb2ac313cc46",
-  "adminPhones": ["+918368715913", "+918800571228"]
+  "adminPhones": [
+    "+918368715913",
+    "+918800571228"
+  ],
+  "adminEmails": [
+    "prabhkiratsingh1313@gmail.com"
+  ]
 }
