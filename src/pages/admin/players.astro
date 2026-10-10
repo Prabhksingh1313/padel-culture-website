@@ -18,7 +18,7 @@ const games = (await getCollection('games')).map((g) => ({
   <script type="application/json" id="games-data" set:html={JSON.stringify(games)} />
   <main class="wrap admin">
     <header class="ahead">
-      <a href="/" class="brand"><img src="/brand/padel-culture-logo-circle.svg" alt="" width="36" height="36" /> Padel Culture</a>
+      <a href="/" class="brand">Padel Culture</a>
       <span class="eyebrow">Players</span>
       <button class="linkbtn" id="b-logout" hidden>Log out</button>
     </header>
