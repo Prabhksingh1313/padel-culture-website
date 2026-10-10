@@ -3,12 +3,12 @@ backend:
   name: github
   repo: Prabhksingh1313/padel-culture-website
   branch: main
-  base_url: https://padelculture.in   # <- your live domain (no trailing slash)
+  base_url: https://www.padelculture.in   # <- your live domain (no trailing slash)
   auth_endpoint: api/auth
 
 media_folder: public/uploads
 public_folder: /uploads
-site_url: https://padelculture.in
+site_url: https://www.padelculture.in
 logo_url: /brand/padel-culture-logo-circle.svg
 
 collections:
