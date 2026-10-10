@@ -31,6 +31,7 @@ import fb from '../../data/firebase.json';
       <p class="err" id="e-login" hidden></p>
     </div>
 
+    <div id="recaptcha"></div>
     <p class="err" id="s-denied" hidden>This number isn't an admin. Log out and sign in with the admin number.</p>
 
     <!-- Players table -->
@@ -88,7 +89,7 @@ import fb from '../../data/firebase.json';
     let confirmation;
     $('f-send').addEventListener('submit', async (e) => {
       e.preventDefault(); err();
-      try { confirmation = await fb.sendCode($('f-phone').value, 'b-send'); $('f-send').hidden = true; $('f-code').hidden = false; $('f-otp').focus(); }
+      try { confirmation = await fb.sendCode($('f-phone').value, 'recaptcha'); $('f-send').hidden = true; $('f-code').hidden = false; $('f-otp').focus(); }
       catch (ex) { console.error(ex); fb.resetVerifier(); err(fb.friendlyError(ex)); }
     });
     $('f-code').addEventListener('submit', async (e) => {

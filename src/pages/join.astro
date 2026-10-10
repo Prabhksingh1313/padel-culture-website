@@ -73,6 +73,7 @@ const areas = site.areas.filter((a) => !a.toLowerCase().includes('coming soon'))
       </div>
 
       <p class="muted loading" id="s-loading">Loading…</p>
+      <div id="recaptcha"></div>
     </div>
   </main>
   <Footer />
@@ -136,7 +137,7 @@ const areas = site.areas.filter((a) => !a.toLowerCase().includes('coming soon'))
       const btn = $('b-send');
       busy(btn, true, 'Sending…');
       try {
-        confirmation = await fb.sendCode(phone, 'b-send');
+        confirmation = await fb.sendCode(phone, 'recaptcha');
         pending = { name, area: $('f-area').value };
         $('t-phone').textContent = '+91 ' + phone.replace(/(\d{5})(\d{5})/, '$1 $2');
         show('s-code');
