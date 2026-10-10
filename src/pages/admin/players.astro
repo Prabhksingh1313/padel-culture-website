@@ -32,7 +32,10 @@ import fb from '../../data/firebase.json';
     </div>
 
     <div id="recaptcha"></div>
-    <p class="err" id="s-denied" hidden>This number isn't an admin. Log out and sign in with the admin number.</p>
+    <div id="s-denied" hidden class="denied">
+      <p class="err" id="t-denied"></p>
+      <button class="btn btn-ghost" id="b-switch" type="button">Log out and use another number</button>
+    </div>
 
     <!-- Players table -->
     <section id="s-list" hidden>
@@ -77,12 +80,23 @@ import fb from '../../data/firebase.json';
     else fb.watchUser(async (user) => {
       $('b-logout').hidden = !user;
       if (!user) return show('s-login');
-      if (!fb.adminPhones.includes(user.phoneNumber)) return show('s-denied');
+      const denied = (msg) => { $('t-denied').textContent = msg; show('s-denied'); };
+      if (!fb.adminPhones.includes(user.phoneNumber)) {
+        return denied(`You're logged in as ${user.phoneNumber}, which isn't an admin number.`);
+      }
       try {
         players = await fb.listPlayers();
         render();
         show('s-list');
-      } catch (e) { console.error(e); show('s-denied'); }
+      } catch (e) {
+        console.error(e);
+        const c = (e && e.code) || '';
+        if (c.includes('permission-denied')) {
+          denied(`You're logged in as ${user.phoneNumber}, but the database rules in Firebase don't list this number as an admin yet. Update and publish the Firestore rules, then refresh. (permission-denied)`);
+        } else {
+          denied(`Couldn't load players. Refresh the page and try again. (${c || 'unknown'})`);
+        }
+      }
     });
 
     $('f-phone').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10); });
@@ -98,6 +112,7 @@ import fb from '../../data/firebase.json';
       catch (ex) { console.error(ex); err(fb.friendlyError(ex)); }
     });
     $('b-logout').addEventListener('click', () => fb.logout().then(() => location.reload()));
+    $('b-switch').addEventListener('click', () => fb.logout().then(() => location.reload()));
     $('f-search').addEventListener('input', render);
     $('b-csv').addEventListener('click', () => {
       const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -132,5 +147,6 @@ import fb from '../../data/firebase.json';
   td a { color: var(--sage); }
   .muted { color: var(--mist); }
   .err { color: #9B2C1F; }
+  .denied { display: grid; gap: 1rem; justify-items: start; max-width: 36rem; }
   .linkbtn { background: none; border: 0; padding: 0; font: inherit; color: var(--sage); text-decoration: underline; cursor: pointer; }
 </style>
