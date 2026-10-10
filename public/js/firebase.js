@@ -62,5 +62,8 @@ export function friendlyError(e) {
   if (c.includes('quota-exceeded')) return 'We can\'t send codes right now. Please message us on WhatsApp instead.';
   if (c.includes('captcha')) return 'Security check failed. Refresh the page and try again.';
   if (c.includes('permission-denied')) return 'You don\'t have access to this.';
-  return 'Something went wrong. Refresh the page and try again.';
+  if (c.includes('unauthorized-domain')) return 'Sign-up isn\'t enabled for this web address yet. (unauthorized-domain)';
+  if (c.includes('operation-not-allowed')) return 'Phone sign-up isn\'t switched on yet. (operation-not-allowed)';
+  if (c.includes('billing-not-enabled')) return 'SMS sending isn\'t set up yet. (billing-not-enabled)';
+  return 'Something went wrong. Refresh the page and try again.' + (c ? ` (${c.replace('auth/', '')})` : '');
 }
