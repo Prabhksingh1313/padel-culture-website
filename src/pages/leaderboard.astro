@@ -22,6 +22,7 @@ const tiers = [
         <p class="eyebrow">Padel Culture Rating</p>
         <h1>Leaderboard</h1>
         <p>Everyone starts with a provisional rating from a short questionnaire. Results in rated games then move you up or down, and a host check turns your rating Verified.</p>
+        <p class="have" id="t-have">Already registered? <a href="/login?next=/leaderboard">Log in to see your rank</a></p>
       </div>
       <div class="me" id="t-me" hidden>
         <span class="rc-label">Your rating</span>
@@ -112,6 +113,7 @@ const tiers = [
           const mine = rows.find((r) => r.id === myId);
           $('t-me').hidden = !mine;
           $('t-cta').hidden = Boolean(mine);
+          $('t-have').hidden = Boolean(user);
           if (mine) {
             $('t-me-tier').textContent = mine.tier;
             $('t-me-rating').textContent = Number(mine.rating).toFixed(1);
@@ -134,7 +136,8 @@ const tiers = [
   .lb-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 20rem); gap: 2rem; align-items: end; }
   .lb-intro { display: grid; gap: 1rem; max-width: 36rem; }
   .lb-intro h1 { font-size: clamp(2.8rem, 7vw, 4.6rem); }
-  .lb-intro p:last-child { color: var(--mist); }
+  .lb-intro p:not(.eyebrow) { color: var(--mist); }
+  .have a { color: var(--sage); font-weight: 500; }
   .me, .cta { display: grid; gap: 0.35rem; padding: 1.4rem; border-radius: 10px; background: var(--chalk); color: var(--forest); text-decoration: none; }
   .cta:hover { background: var(--sage); }
   .rc-label { font-size: 0.68rem; letter-spacing: 0.22em; text-transform: uppercase; color: var(--moss); }

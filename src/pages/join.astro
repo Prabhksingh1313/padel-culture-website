@@ -16,6 +16,7 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
       <p class="eyebrow">Join the community</p>
       <h1>Sign up to play.</h1>
       <p>Verify your mobile number once and you're on the Padel Culture list for games, beginner sessions and tournaments in West Delhi.</p>
+      <p class="have">Already registered? <a href="/login">Log in with your password</a></p>
     </div>
 
     <div class="panel" aria-live="polite">
@@ -57,7 +58,22 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
         <p class="links"><button type="button" class="linkbtn" id="b-change">Change number</button></p>
       </form>
 
-      <!-- Step 3: questionnaire -->
+      <!-- Step 3: password -->
+      <form id="s-password" hidden novalidate>
+        <p class="eyebrow">Number verified</p>
+        <h2>Create a password</h2>
+        <p class="muted">Next time, log in with your mobile number and this password. No OTP needed.</p>
+        <label for="f-pass">Password</label>
+        <div class="pass">
+          <input id="f-pass" type="password" autocomplete="new-password" minlength="6" maxlength="32" placeholder="At least 6 characters" />
+          <button type="button" class="linkbtn" id="b-showpass">Show</button>
+        </div>
+        <p class="muted hint">At least 6 characters. Numbers only is fine, e.g. a 6-digit PIN.</p>
+        <p class="err" id="e-pass" hidden></p>
+        <button class="btn btn-solid" id="b-pass" type="submit">Save password</button>
+      </form>
+
+      <!-- Step 4: questionnaire -->
       <div id="s-quiz" hidden>
         <p class="eyebrow">Your Padel Culture Rating · <span id="t-qnum">1</span> of <span id="t-qtotal">8</span></p>
         <div class="progress" aria-hidden="true"><i id="t-qbar"></i></div>
@@ -68,7 +84,7 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
         <p class="links"><button type="button" class="linkbtn" id="b-qback" hidden>Back</button></p>
       </div>
 
-      <!-- Step 4: result -->
+      <!-- Step 5: result -->
       <div id="s-done" hidden>
         <p class="eyebrow" id="t-welcome">You're in</p>
         <div class="rating-card" id="t-card" hidden>
@@ -99,7 +115,7 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
       catch (e) { console.error(e); }
     }
     const $ = (id) => document.getElementById(id);
-    const steps = ['s-off', 's-details', 's-code', 's-quiz', 's-done', 's-loading'];
+    const steps = ['s-off', 's-details', 's-code', 's-password', 's-quiz', 's-done', 's-loading'];
     const show = (id) => steps.forEach((s) => ($(s).hidden = s !== id));
     const err = (id, msg) => { $(id).textContent = msg || ''; $(id).hidden = !msg; };
     const busy = (btn, on, label) => { btn.disabled = on; if (label) btn.textContent = label; };
@@ -122,9 +138,33 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
       }
       me = { user, name: (pending && pending.name) || (player && player.name) || '' };
       pending = null;
+      me.player = player;
+      if (!fb.hasPassword(user)) { show('s-password'); $('f-pass').focus(); return; }
+      next();
+    }
+    function next() {
+      const player = me.player;
       if (player && typeof player.rating === 'number') showResult(player.rating, player.tier, false);
       else startQuiz();
     }
+
+    // Password
+    $('b-showpass').addEventListener('click', () => {
+      const f = $('f-pass');
+      f.type = f.type === 'password' ? 'text' : 'password';
+      $('b-showpass').textContent = f.type === 'password' ? 'Show' : 'Hide';
+    });
+    $('s-password').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const pw = $('f-pass').value;
+      if (pw.length < 6) return err('e-pass', 'Use at least 6 characters. Numbers only is fine.');
+      err('e-pass');
+      const btn = $('b-pass');
+      busy(btn, true, 'Saving…');
+      try { await fb.setPassword(me.user, pw); next(); }
+      catch (ex) { console.error(ex); err('e-pass', fb.friendlyError(ex)); }
+      finally { busy(btn, false, 'Save password'); }
+    });
 
     // Questionnaire
     let qi = 0;
@@ -245,7 +285,8 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
   .join-page { display: grid; grid-template-columns: 1fr minmax(0, 28rem); gap: clamp(2rem, 6vw, 5rem); padding-block: clamp(3rem, 8vw, 6rem); align-items: start; }
   .intro { display: grid; gap: 1.2rem; max-width: 30rem; }
   .intro h1 { font-size: clamp(2.8rem, 7vw, 4.8rem); }
-  .intro p:last-child { color: var(--mist); }
+  .intro p:not(.eyebrow) { color: var(--mist); }
+  .have a { color: var(--sage); font-weight: 500; }
   .panel { background: var(--pine); border: 1px solid var(--line); border-radius: 8px; padding: clamp(1.4rem, 4vw, 2.2rem); min-width: 0; }
   .panel form, .panel > div { display: grid; gap: 0.7rem; }
   .panel h2 { font-size: 2rem; margin-bottom: 0.4rem; }
@@ -270,6 +311,8 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
   .links { font-size: 0.85rem; color: var(--mist); }
   .links a, .linkbtn { color: var(--sage); }
   .linkbtn { background: none; border: 0; padding: 0; font: inherit; text-decoration: underline; cursor: pointer; }
+  .pass { display: flex; align-items: center; gap: 0.6rem; }
+  .pass input { flex: 1; min-width: 0; }
   .progress { height: 4px; background: var(--moss); border-radius: 2px; overflow: hidden; }
   .progress i { display: block; height: 100%; background: var(--olive); transition: width 0.3s; }
   .hint { font-size: 0.85rem; }

@@ -19,7 +19,8 @@ import fb from '../../data/firebase.json';
     <div class="login" id="s-login" hidden>
       <h1>Admin login</h1>
       <button class="btn btn-solid" id="b-google" type="button">Sign in with Google</button>
-      <p class="muted or">or use your admin mobile number</p>
+      <a class="btn btn-ghost" href="/login?next=/admin/players">Log in with mobile and password</a>
+      <p class="muted or">or get an OTP on your admin mobile number</p>
       <form id="f-send" novalidate>
         <label for="f-phone">Admin mobile number</label>
         <div class="phone"><span>+91</span><input id="f-phone" inputmode="numeric" maxlength="10" autocomplete="tel-national" /></div>

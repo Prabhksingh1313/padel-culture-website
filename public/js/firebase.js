@@ -3,6 +3,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/fireba
 import {
   getAuth, onAuthStateChanged, RecaptchaVerifier, signInWithPhoneNumber, signOut,
   GoogleAuthProvider, signInWithPopup,
+  EmailAuthProvider, linkWithCredential, signInWithEmailAndPassword, updatePassword,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
   getFirestore, doc, getDoc, setDoc, collection, getDocs, query, orderBy, serverTimestamp,
@@ -60,6 +61,24 @@ export function resetVerifier() {
   verifier = undefined;
 }
 
+// Passwords: each player's mobile number doubles as their login ID.
+// Firebase stores it as <number>@players.padelculture.in (no emails are ever sent).
+export function loginId(phone) {
+  const digits = String(phone || '').replace(/\D/g, '').slice(-10);
+  return `91${digits}@players.padelculture.in`;
+}
+export function hasPassword(user) {
+  return Boolean(user) && user.providerData.some((p) => p.providerId === 'password');
+}
+export async function setPassword(user, password) {
+  if (hasPassword(user)) return updatePassword(user, password);
+  return linkWithCredential(user, EmailAuthProvider.credential(loginId(user.phoneNumber), password));
+}
+export function loginWithPassword(phone10, password) {
+  return signInWithEmailAndPassword(auth, loginId(phone10), password);
+}
+export function currentUser() { return ready ? auth.currentUser : null; }
+
 export async function getPlayer(uid) {
   const snap = await getDoc(doc(db, 'players', uid));
   return snap.exists() ? snap.data() : null;
@@ -111,6 +130,10 @@ export function friendlyError(e) {
   if (c.includes('quota-exceeded')) return 'We can\'t send codes right now. Please message us on WhatsApp instead.';
   if (c.includes('captcha')) return 'Security check failed. Refresh the page and try again.';
   if (c.includes('permission-denied')) return 'You don\'t have access to this.';
+  if (c.includes('invalid-credential') || c.includes('wrong-password') || c.includes('user-not-found') || c.includes('invalid-login')) return 'Wrong mobile number or password. Try again, or reset your password with an OTP.';
+  if (c.includes('weak-password')) return 'Use at least 6 characters. Numbers only is fine.';
+  if (c.includes('email-already-in-use') || c.includes('credential-already-in-use')) return 'A password is already set for this number. Log in instead, or reset it with an OTP.';
+  if (c.includes('requires-recent-login')) return 'For security, verify your number with an OTP again, then set your password.';
   if (c.includes('unauthorized-domain')) return 'Sign-up isn\'t enabled for this web address yet. (unauthorized-domain)';
   if (c.includes('operation-not-allowed')) return 'Phone sign-up isn\'t switched on yet. (operation-not-allowed)';
   if (c.includes('billing-not-enabled')) return 'SMS sending isn\'t set up yet. (billing-not-enabled)';
