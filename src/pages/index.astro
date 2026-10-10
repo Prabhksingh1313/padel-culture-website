@@ -4,7 +4,6 @@ import Header from '../components/Header.astro';
 import Footer from '../components/Footer.astro';
 import { getCollection } from 'astro:content';
 import site from '../data/site.json';
-import venuesData from '../data/venues.json';
 import faqData from '../data/faq.json';
 import gallery from '../data/gallery.json';
 
@@ -191,18 +190,6 @@ const jsonld = [
           <h2>Courts were here. The community wasn't.</h2>
           <p>{site.about}</p>
         </div>
-        <div class="venues">
-          <p class="eyebrow">Where we play</p>
-          <ul>
-            {venuesData.venues.map((v) => (
-              <li>
-                <h3>{v.mapLink ? <a href={v.mapLink} target="_blank" rel="noopener">{v.name}</a> : v.name}</h3>
-                <p class="venue-meta">{v.area}{v.courts ? ` · ${v.courts} courts` : ''}</p>
-                {v.note && <p class="venue-note">{v.note}</p>}
-              </li>
-            ))}
-          </ul>
-        </div>
       </div>
     </section>
 
@@ -330,19 +317,12 @@ const jsonld = [
   .gallery img { aspect-ratio: 4 / 5; object-fit: cover; width: 100%; border-radius: 4px; }
   .gallery figcaption { font-size: 0.8rem; color: var(--mist); padding-top: 0.4rem; }
 
-  /* About + venues */
+  /* About */
   .about { border-top: 1px solid var(--line); }
-  .about-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: clamp(2rem, 6vw, 5rem); }
+  .about-grid { display: grid; }
   .about-copy { display: grid; gap: 1.2rem; align-content: start; max-width: 38rem; }
   .about-copy h2 { font-size: clamp(2.2rem, 5vw, 3.4rem); }
   .about-copy p:last-child { color: var(--mist); }
-  .venues { display: grid; gap: 1rem; align-content: start; }
-  .venues ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.2rem; }
-  .venues li { padding: 1.3rem; background: var(--pine); border: 1px solid var(--line); border-radius: 6px; display: grid; gap: 0.3rem; }
-  .venues h3 { font-size: 1.5rem; }
-  .venues h3 a { color: var(--chalk); text-decoration-color: var(--olive); }
-  .venue-meta { font-size: 0.75rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--olive); }
-  .venue-note { color: var(--mist); font-size: 0.9rem; }
   @media (max-width: 860px) { .about-grid { grid-template-columns: 1fr; } }
 
   /* FAQ */
