@@ -7,7 +7,6 @@ import fb from '../data/firebase.json';
 
 const waBase = site.whatsappNumber ? `https://wa.me/${site.whatsappNumber.replace(/\D/g, '')}` : '';
 const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURIComponent('Hi! I just signed up on padelculture.in. Please add me to the Padel Culture community.')}` : site.instagram);
-const areas = site.areas.filter((a) => !a.toLowerCase().includes('coming soon'));
 ---
 <Base title="Join Padel Culture | West Delhi padel community" description="Sign up with your mobile number to join Padel Culture's padel community in West Delhi.">
   <script type="application/json" id="fb-config" set:html={JSON.stringify(fb)} />
@@ -37,13 +36,8 @@ const areas = site.areas.filter((a) => !a.toLowerCase().includes('coming soon'))
           <span>+91</span>
           <input id="f-phone" name="phone" inputmode="numeric" autocomplete="tel-national" required maxlength="10" placeholder="98765 43210" />
         </div>
-        <label for="f-area">Where in Delhi do you live? <span class="opt">(optional)</span></label>
-        <select id="f-area" name="area">
-          <option value="">Choose an area</option>
-          {areas.map((a) => <option>{a}</option>)}
-          <option>Gurgaon</option>
-          <option>Other</option>
-        </select>
+        <label for="f-pin">PIN code</label>
+        <input id="f-pin" name="pincode" inputmode="numeric" autocomplete="postal-code" required maxlength="6" placeholder="e.g. 110058" />
         <label class="check" for="f-consent">
           <input type="checkbox" id="f-consent" required />
           <span>Padel Culture can contact me on this number about games and community updates. See the <a href="/privacy">privacy policy</a>.</span>
@@ -97,7 +91,7 @@ const areas = site.areas.filter((a) => !a.toLowerCase().includes('coming soon'))
       let player = null;
       try { player = await fb.getPlayer(user.uid); } catch (e) {}
       const fields = pending
-        ? { name: pending.name, area: pending.area, consent: true }
+        ? { name: pending.name, pincode: pending.pincode, consent: true }
         : {};
       if (pending || !player) {
         if (!fields.name) fields.name = (player && player.name) || 'Player';
@@ -124,6 +118,7 @@ const areas = site.areas.filter((a) => !a.toLowerCase().includes('coming soon'))
     }
 
     $('f-phone').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10); });
+    $('f-pin').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); });
     $('f-code').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); });
 
     $('s-details').addEventListener('submit', async (e) => {
@@ -132,13 +127,15 @@ const areas = site.areas.filter((a) => !a.toLowerCase().includes('coming soon'))
       const phone = $('f-phone').value.trim();
       if (name.length < 2) return err('e-details', 'Please enter your name.');
       if (!/^[6-9]\d{9}$/.test(phone)) return err('e-details', 'Enter a valid 10-digit Indian mobile number.');
+      const pincode = $('f-pin').value.trim();
+      if (!/^[1-9]\d{5}$/.test(pincode)) return err('e-details', 'Enter your 6-digit PIN code.');
       if (!$('f-consent').checked) return err('e-details', 'Please tick the box to agree to be contacted.');
       err('e-details');
       const btn = $('b-send');
       busy(btn, true, 'Sending…');
       try {
         confirmation = await fb.sendCode(phone, 'recaptcha');
-        pending = { name, area: $('f-area').value };
+        pending = { name, pincode };
         $('t-phone').textContent = '+91 ' + phone.replace(/(\d{5})(\d{5})/, '$1 $2');
         show('s-code');
         $('f-code').focus();

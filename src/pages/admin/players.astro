@@ -43,12 +43,12 @@ import fb from '../../data/firebase.json';
     <section id="s-list" hidden>
       <div class="bar">
         <h1><span id="t-count">0</span> players</h1>
-        <input id="f-search" type="search" placeholder="Search name, number or area" aria-label="Search players" />
+        <input id="f-search" type="search" placeholder="Search name, number or PIN code" aria-label="Search players" />
         <button class="btn btn-ghost" id="b-csv" type="button">Download CSV</button>
       </div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Name</th><th>Mobile</th><th>Area</th><th>Joined</th><th>Last login</th></tr></thead>
+          <thead><tr><th>Name</th><th>Mobile</th><th>PIN code</th><th>Joined</th><th>Last login</th></tr></thead>
           <tbody id="t-rows"></tbody>
         </table>
       </div>
@@ -72,9 +72,9 @@ import fb from '../../data/firebase.json';
 
     function render() {
       const q = $('f-search').value.trim().toLowerCase();
-      const rows = players.filter((p) => !q || [p.name, p.phone, p.area].join(' ').toLowerCase().includes(q));
+      const rows = players.filter((p) => !q || [p.name, p.phone, p.pincode, p.area].join(' ').toLowerCase().includes(q));
       $('t-count').textContent = rows.length;
-      $('t-rows').innerHTML = rows.map((p) => `<tr><td>${esc(p.name)}</td><td><a href="https://wa.me/${esc((p.phone || '').replace('+', ''))}" target="_blank" rel="noopener">${esc(p.phone)}</a></td><td>${esc(p.area)}</td><td>${fmt(p.createdAt)}</td><td>${fmt(p.lastLoginAt)}</td></tr>`).join('')
+      $('t-rows').innerHTML = rows.map((p) => `<tr><td>${esc(p.name)}</td><td><a href="https://wa.me/${esc((p.phone || '').replace('+', ''))}" target="_blank" rel="noopener">${esc(p.phone)}</a></td><td>${esc(p.pincode || p.area)}</td><td>${fmt(p.createdAt)}</td><td>${fmt(p.lastLoginAt)}</td></tr>`).join('')
         || '<tr><td colspan="5" class="muted">No players yet.</td></tr>';
     }
 
@@ -131,8 +131,8 @@ import fb from '../../data/firebase.json';
     $('f-search').addEventListener('input', render);
     $('b-csv').addEventListener('click', () => {
       const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-      const lines = [['Name', 'Mobile', 'Area', 'Joined', 'Last login'].map(cell).join(',')]
-        .concat(players.map((p) => [p.name, p.phone, p.area, fmt(p.createdAt), fmt(p.lastLoginAt)].map(cell).join(',')));
+      const lines = [['Name', 'Mobile', 'PIN code', 'Joined', 'Last login'].map(cell).join(',')]
+        .concat(players.map((p) => [p.name, p.phone, p.pincode || p.area, fmt(p.createdAt), fmt(p.lastLoginAt)].map(cell).join(',')));
       const url = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
       const a = Object.assign(document.createElement('a'), { href: url, download: `padel-culture-players-${new Date().toISOString().slice(0, 10)}.csv` });
       a.click(); URL.revokeObjectURL(url);
