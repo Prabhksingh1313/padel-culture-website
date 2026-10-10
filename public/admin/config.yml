@@ -1,0 +1,89 @@
+# Admin panel for padelculture website. Open yourdomain/admin and log in with GitHub.
+backend:
+  name: github
+  repo: Prabhksingh1313/padel-culture-website
+  branch: main
+  base_url: https://padelculture.in   # <- your live domain (no trailing slash)
+  auth_endpoint: api/auth
+
+media_folder: public/uploads
+public_folder: /uploads
+site_url: https://padelculture.in
+logo_url: /brand/padel-culture-logo-circle.svg
+
+collections:
+  - name: games
+    label: Games
+    label_singular: Game
+    folder: src/content/games
+    create: true
+    slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
+    sortable_fields: [date, title]
+    summary: "{{date | date('DD MMM YYYY')}} · {{title}} · {{status}}"
+    fields:
+      - { label: Title, name: title, widget: string, hint: "e.g. Saturday Evening Americano" }
+      - { label: Start date & time, name: date, widget: datetime, format: "YYYY-MM-DDTHH:mm:ssZ", date_format: "DD MMM YYYY", time_format: "h:mm A" }
+      - { label: End time, name: endTime, widget: string, required: false, hint: "e.g. 21:00" }
+      - { label: Venue, name: venue, widget: string }
+      - { label: Area, name: area, widget: string, default: West Delhi }
+      - { label: Google Maps link, name: mapLink, widget: string, required: false }
+      - { label: Format, name: format, widget: select, options: [Americano, Mexicano, Coached Americano, Tournament, Open play], default: Americano }
+      - { label: Level, name: level, widget: string, default: All levels, hint: "e.g. Beginner, Intermediate (2.5+), All levels" }
+      - { label: Price per player (₹), name: price, widget: number, value_type: int, default: 800 }
+      - { label: Total spots, name: spots, widget: number, value_type: int, default: 16 }
+      - { label: Spots left, name: spotsLeft, widget: number, value_type: int, required: false }
+      - { label: Booking link (optional), name: bookingLink, widget: string, required: false, hint: "Hudle / Playo / Razorpay / Google Form. Leave empty to use WhatsApp." }
+      - { label: Status, name: status, widget: select, options: [open, full, cancelled], default: open }
+      - { label: Notes, name: body, widget: markdown, required: false }
+
+  - name: settings
+    label: Site settings
+    files:
+      - name: site
+        label: Main text & contact
+        file: src/data/site.json
+        fields:
+          - { label: Tagline, name: tagline, widget: string }
+          - { label: Hero headline, name: heroTitle, widget: string }
+          - { label: Hero text, name: heroText, widget: text }
+          - { label: About text, name: about, widget: text }
+          - { label: WhatsApp number (with country code, e.g. 919876543210), name: whatsappNumber, widget: string, required: false }
+          - { label: WhatsApp community / group link, name: whatsappGroupLink, widget: string, required: false }
+          - { label: Instagram URL, name: instagram, widget: string }
+          - { label: Instagram handle, name: instagramHandle, widget: string }
+          - { label: Email, name: email, widget: string, required: false }
+          - { label: Areas, name: areas, widget: list }
+          - { label: Name, name: name, widget: hidden }
+      - name: venues
+        label: Venues
+        file: src/data/venues.json
+        fields:
+          - label: Venues
+            name: venues
+            widget: list
+            fields:
+              - { label: Name, name: name, widget: string }
+              - { label: Area, name: area, widget: string }
+              - { label: Number of courts, name: courts, widget: number, value_type: int, required: false }
+              - { label: Google Maps link, name: mapLink, widget: string, required: false }
+              - { label: Note, name: note, widget: text, required: false }
+      - name: faq
+        label: FAQ
+        file: src/data/faq.json
+        fields:
+          - label: Questions
+            name: items
+            widget: list
+            fields:
+              - { label: Question, name: q, widget: string }
+              - { label: Answer, name: a, widget: text }
+      - name: gallery
+        label: Photo gallery
+        file: src/data/gallery.json
+        fields:
+          - label: Photos
+            name: photos
+            widget: list
+            fields:
+              - { label: Photo, name: image, widget: image }
+              - { label: Caption, name: caption, widget: string, required: false }

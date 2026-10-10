@@ -1,0 +1,9 @@
+{
+  "items": [
+    { "q": "What is an Americano?", "a": "A social padel format. Everyone plays short matches to a fixed number of points, and partners rotate every round. Your points add up individually, so by the end you've played with and against most of the group and there's a leaderboard to show for it." },
+    { "q": "I've never played padel. Can I come?", "a": "Yes. Look for games marked Beginner or All levels. Bring trainers with a flat sole; we can sort out a racket if you message us before the game." },
+    { "q": "Do I need a partner?", "a": "No. Sign up on your own. Americano pairs you with someone new every round." },
+    { "q": "How do I pay?", "a": "Payment details are shared when you book your spot. Cancel at least 24 hours before so someone on the waitlist can take your place." },
+    { "q": "How long is a game?", "a": "Most sessions run 90 minutes to 2 hours, depending on the number of players and courts." }
+  ]
+}

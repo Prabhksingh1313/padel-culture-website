@@ -1,0 +1,5 @@
+{
+  "venues": [
+    { "name": "Venue name (add yours)", "area": "West Delhi", "courts": 2, "mapLink": "", "note": "Replace this with a court you play at. Edit it in the admin panel under Venues." }
+  ]
+}

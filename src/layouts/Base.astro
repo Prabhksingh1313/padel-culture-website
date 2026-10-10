@@ -1,0 +1,86 @@
+---
+import site from '../data/site.json';
+interface Props { title?: string; description?: string; jsonld?: object[] }
+const {
+  title = `${site.name} | Padel games in West Delhi`,
+  description = 'Social Americano padel games in West Delhi. Mixed levels, rotating partners, no partner needed. Book a spot with Padel Culture.',
+  jsonld = [],
+} = Astro.props;
+const canonical = new URL(Astro.url.pathname, Astro.site);
+---
+<html lang="en-IN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/brand/padel-culture-logo-circle.svg" type="image/svg+xml" />
+    <meta name="theme-color" content="#0B1F14" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={new URL('/brand/padel-culture-logo-square.png', Astro.site)} />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Montserrat:wght@400;500;600&display=swap" />
+    {jsonld.map((j) => <script type="application/ld+json" set:html={JSON.stringify(j)} />)}
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
+
+<style is:global>
+  /* Layout: one long page, a fixture board at its centre; court-line motif in olive hairlines. */
+  :root {
+    --forest: #0B1F14;   /* brand ground */
+    --pine: #13301F;     /* raised surfaces */
+    --moss: #1C3D29;     /* hover / borders */
+    --olive: #7E9358;    /* brand accent */
+    --sage: #B7C595;     /* light accent for text on dark */
+    --chalk: #ECEFE3;    /* primary text */
+    --mist: #A9B4A0;     /* secondary text */
+    --line: rgba(126, 147, 88, 0.35);
+    --display: 'Cormorant Garamond', 'Cormorant', Georgia, 'Times New Roman', serif;
+    --body: 'Montserrat', 'Helvetica Neue', Arial, sans-serif;
+    --wrap: 72rem;
+    color-scheme: dark;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    margin: 0;
+    background: var(--forest);
+    color: var(--chalk);
+    font-family: var(--body);
+    font-size: 1rem;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  img { max-width: 100%; display: block; }
+  a { color: inherit; }
+  h1, h2, h3 { font-family: var(--display); font-weight: 500; line-height: 1.05; margin: 0; text-wrap: balance; }
+  p { margin: 0; }
+  .wrap { max-width: var(--wrap); margin-inline: auto; padding-inline: clamp(1rem, 4vw, 2.5rem); }
+  .eyebrow {
+    font-size: 0.72rem; font-weight: 600; letter-spacing: 0.32em; text-transform: uppercase; color: var(--olive);
+  }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
+    padding: 0.85rem 1.4rem; border-radius: 999px; border: 1px solid var(--olive);
+    font: 600 0.78rem/1 var(--body); letter-spacing: 0.16em; text-transform: uppercase;
+    text-decoration: none; cursor: pointer; transition: background 0.2s, color 0.2s;
+  }
+  .btn-solid { background: var(--olive); color: var(--forest); }
+  .btn-solid:hover { background: var(--sage); border-color: var(--sage); }
+  .btn-ghost { background: transparent; color: var(--chalk); }
+  .btn-ghost:hover { background: var(--moss); }
+  a:focus-visible, .btn:focus-visible, summary:focus-visible { outline: 2px solid var(--sage); outline-offset: 3px; }
+  section { padding-block: clamp(3.5rem, 8vw, 6rem); }
+  .section-head { display: grid; gap: 0.8rem; margin-bottom: 2.5rem; max-width: 40rem; }
+  .section-head h2 { font-size: clamp(2.2rem, 5vw, 3.4rem); }
+  .section-head p { color: var(--mist); }
+</style>

@@ -1,0 +1,404 @@
+---
+import Base from '../layouts/Base.astro';
+import { getCollection } from 'astro:content';
+import site from '../data/site.json';
+import venuesData from '../data/venues.json';
+import faqData from '../data/faq.json';
+import gallery from '../data/gallery.json';
+
+const tz = 'Asia/Kolkata';
+const all = await getCollection('games');
+const games = all
+  .filter((g) => g.data.status !== 'cancelled')
+  .sort((a, b) => a.data.date.valueOf() - b.data.date.valueOf());
+
+const fmt = (d: Date, o: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat('en-IN', { timeZone: tz, ...o }).format(d);
+
+const waBase = site.whatsappNumber
+  ? `https://wa.me/${site.whatsappNumber.replace(/\D/g, '')}`
+  : '';
+function bookHref(g: (typeof games)[number]) {
+  if (g.data.bookingLink) return g.data.bookingLink;
+  const msg = `Hi Padel Culture! I'd like a spot in "${g.data.title}" on ${fmt(g.data.date, { weekday: 'long', day: 'numeric', month: 'long' })} at ${g.data.venue}.`;
+  if (waBase) return `${waBase}?text=${encodeURIComponent(msg)}`;
+  return site.whatsappGroupLink || site.instagram;
+}
+const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURIComponent('Hi! Please add me to the Padel Culture community.')}` : site.instagram);
+
+const jsonld = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'SportsOrganization',
+    name: site.name,
+    sport: 'Padel',
+    url: Astro.site?.toString(),
+    logo: new URL('/brand/padel-culture-logo-square.png', Astro.site).toString(),
+    sameAs: [site.instagram],
+    areaServed: 'West Delhi, India',
+  },
+  ...games.map((g) => ({
+    '@context': 'https://schema.org',
+    '@type': 'SportsEvent',
+    name: `${g.data.title} | ${site.name}`,
+    sport: 'Padel',
+    startDate: g.data.date.toISOString(),
+    eventStatus: 'https://schema.org/EventScheduled',
+    eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
+    location: { '@type': 'Place', name: g.data.venue, address: `${g.data.area}, Delhi, India` },
+    organizer: { '@type': 'Organization', name: site.name, url: Astro.site?.toString() },
+    offers: { '@type': 'Offer', price: g.data.price, priceCurrency: 'INR', url: bookHref(g), availability: g.data.status === 'full' ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock' },
+  })),
+];
+---
+<Base jsonld={jsonld}>
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <a href="#top" class="brand" aria-label="Padel Culture home">
+        <img src="/brand/padel-culture-monogram-green.svg" alt="" width="40" height="36" />
+        <span>Padel Culture</span>
+      </a>
+      <nav aria-label="Main">
+        <a href="#games">Games</a>
+        <a href="#how">How it works</a>
+        <a href="#about">About</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+      <a class="btn btn-solid topbar-cta" href={joinHref} target="_blank" rel="noopener">Join</a>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- HERO -->
+    <section class="hero">
+      <div class="wrap hero-grid">
+        <div class="hero-copy">
+          <p class="eyebrow">{site.tagline}</p>
+          <h1>{site.heroTitle}</h1>
+          <p class="lede">{site.heroText}</p>
+          <div class="hero-cta">
+            <a class="btn btn-solid" href="#games">See upcoming games</a>
+            <a class="btn btn-ghost" href={joinHref} target="_blank" rel="noopener">Join the community</a>
+          </div>
+        </div>
+        <figure class="court" aria-label="Top-down diagram of a padel court, 20 by 10 metres">
+          <svg viewBox="-30 -30 460 270" role="img">
+            <title>Padel court, 20 m × 10 m</title>
+            <g fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="0" y="0" width="400" height="200" />
+              <line x1="61" y1="0" x2="61" y2="200" />
+              <line x1="339" y1="0" x2="339" y2="200" />
+              <line x1="61" y1="100" x2="339" y2="100" />
+            </g>
+            <line class="net" x1="200" y1="-8" x2="200" y2="208" stroke-width="3" />
+            <circle class="ball" cx="268" cy="62" r="5" />
+            <g class="dims" font-size="11" letter-spacing="2">
+              <line x1="0" y1="-16" x2="400" y2="-16" stroke-width="0.75" />
+              <text x="200" y="-21" text-anchor="middle">20 M</text>
+              <line x1="416" y1="0" x2="416" y2="200" stroke-width="0.75" />
+              <text x="424" y="104" transform="rotate(90 424 104)" text-anchor="middle">10 M</text>
+              <text x="130" y="224" text-anchor="middle">SERVICE LINE · 6.95 M FROM NET</text>
+            </g>
+          </svg>
+        </figure>
+      </div>
+      <div class="wrap areas" aria-label="Areas we play in">
+        {site.areas.map((a) => <span>{a}</span>)}
+      </div>
+    </section>
+
+    <!-- GAMES -->
+    <section id="games" class="games">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="eyebrow">Fixtures</p>
+          <h2>Upcoming games</h2>
+          <p>Sign up solo. Partners rotate every round, and points count towards your own total.</p>
+        </div>
+        <ol class="board" id="board">
+          {games.map((g) => {
+            const left = g.data.spotsLeft ?? g.data.spots;
+            const taken = Math.max(0, g.data.spots - left);
+            const full = g.data.status === 'full' || !(left > 0);
+            return (
+              <li class:list={['fixture', { full }]} data-start={g.data.date.toISOString()}>
+                <div class="when">
+                  <span class="dow">{fmt(g.data.date, { weekday: 'short' })}</span>
+                  <span class="day">{fmt(g.data.date, { day: 'numeric' })}</span>
+                  <span class="mon">{fmt(g.data.date, { month: 'short' })}</span>
+                </div>
+                <div class="what">
+                  <h3>{g.data.title}</h3>
+                  <p class="meta">
+                    <span>{fmt(g.data.date, { hour: 'numeric', minute: '2-digit', hour12: true })}{g.data.endTime && ` – ${g.data.endTime}`}</span>
+                    <span>
+                      {g.data.mapLink ? <a href={g.data.mapLink} target="_blank" rel="noopener">{g.data.venue}</a> : g.data.venue}, {g.data.area}
+                    </span>
+                  </p>
+                  <p class="chips">
+                    <span class="chip">{g.data.format}</span>
+                    <span class="chip chip-level">{g.data.level}</span>
+                  </p>
+                </div>
+                <div class="spots" aria-label={`${left} of ${g.data.spots} spots left`}>
+                  <span class="dots" aria-hidden="true">
+                    {Array.from({ length: g.data.spots }, (_, i) => <i class:list={{ on: taken > i }} />)}
+                  </span>
+                  <span class="spots-label">{full ? 'Full · waitlist' : `${left} of ${g.data.spots} spots left`}</span>
+                </div>
+                <div class="book">
+                  <span class="price">₹{g.data.price.toLocaleString('en-IN')}</span>
+                  <a class:list={['btn', full ? 'btn-ghost' : 'btn-solid']} href={bookHref(g)} target="_blank" rel="noopener">
+                    {full ? 'Join waitlist' : 'Book spot'}
+                  </a>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+        <p class="board-empty" id="board-empty" hidden={games.length > 0}>
+          No games are listed right now. New games go out on WhatsApp first: <a href={joinHref} target="_blank" rel="noopener">join the community</a>.
+        </p>
+      </div>
+    </section>
+
+    <!-- HOW IT WORKS -->
+    <section id="how" class="how">
+      <div class="wrap">
+        <div class="section-head">
+          <p class="eyebrow">The format</p>
+          <h2>How an Americano works</h2>
+        </div>
+        <ol class="steps">
+          <li>
+            <h3>Book a spot on your own</h3>
+            <p>Pick a game at your level. You don't need a partner or a group; most people come solo.</p>
+          </li>
+          <li>
+            <h3>Rotate partners each round</h3>
+            <p>Rounds are short, usually to 21 or 24 points. After each one you switch partners and opponents.</p>
+          </li>
+          <li>
+            <h3>Points go on your own tally</h3>
+            <p>Every point you win counts for you. The leaderboard is up at the end, then it's chai and photos.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    {gallery.photos.length > 0 && (
+      <section class="gallery" aria-label="Photos from our games">
+        <div class="wrap gallery-grid">
+          {(gallery.photos as { image: string; caption?: string }[]).map((p) => (
+            <figure><img src={p.image} alt={p.caption || 'Padel Culture game'} loading="lazy" />{p.caption && <figcaption>{p.caption}</figcaption>}</figure>
+          ))}
+        </div>
+      </section>
+    )}
+
+    <!-- ABOUT + VENUES -->
+    <section id="about" class="about">
+      <div class="wrap about-grid">
+        <div class="about-copy">
+          <p class="eyebrow">About</p>
+          <h2>Courts were here. The community wasn't.</h2>
+          <p>{site.about}</p>
+        </div>
+        <div class="venues">
+          <p class="eyebrow">Where we play</p>
+          <ul>
+            {venuesData.venues.map((v) => (
+              <li>
+                <h3>{v.mapLink ? <a href={v.mapLink} target="_blank" rel="noopener">{v.name}</a> : v.name}</h3>
+                <p class="venue-meta">{v.area}{v.courts ? ` · ${v.courts} courts` : ''}</p>
+                {v.note && <p class="venue-note">{v.note}</p>}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- FAQ -->
+    <section id="faq" class="faq">
+      <div class="wrap faq-grid">
+        <div class="section-head">
+          <p class="eyebrow">Questions</p>
+          <h2>Before your first game</h2>
+        </div>
+        <div class="faq-list">
+          {faqData.items.map((f) => (
+            <details>
+              <summary>{f.q}</summary>
+              <p>{f.a}</p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
+
+    <!-- JOIN -->
+    <section class="join">
+      <div class="wrap join-inner">
+        <img src="/brand/padel-culture-logo-green.svg" alt="Padel Culture" width="180" height="176" />
+        <h2>Games fill up on WhatsApp first.</h2>
+        <p>Join the community to hear about new Americanos, beginner sessions and tournaments in West Delhi before they're posted anywhere else.</p>
+        <div class="hero-cta">
+          <a class="btn btn-solid" href={joinHref} target="_blank" rel="noopener">Join the community</a>
+          <a class="btn btn-ghost" href={site.instagram} target="_blank" rel="noopener">Instagram {site.instagramHandle}</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <div class="wrap foot-inner">
+      <span>© {new Date().getFullYear()} Padel Culture · West Delhi</span>
+      <span>
+        <a href={site.instagram} target="_blank" rel="noopener">{site.instagramHandle}</a>
+        {site.email && <span> · {site.email}</span>}
+      </span>
+    </div>
+  </footer>
+
+  <script is:inline>
+    // Hide games that have already started, so the board stays current between updates.
+    (function () {
+      var now = Date.now();
+      var rows = document.querySelectorAll('#board .fixture');
+      var shown = 0;
+      rows.forEach(function (r) {
+        var t = Date.parse(r.getAttribute('data-start'));
+        if (t && t + 3 * 3600e3 < now) r.hidden = true; else shown++;
+      });
+      if (rows.length && !shown) document.getElementById('board-empty').hidden = false;
+    })();
+  </script>
+</Base>
+
+<style>
+  /* Top bar */
+  .topbar {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10;
+    background: color-mix(in srgb, var(--forest) 88%, transparent);
+    backdrop-filter: blur(10px); border-bottom: 1px solid var(--line);
+  }
+  .topbar-inner { display: flex; align-items: center; gap: 1.5rem; padding-block: 0.7rem; }
+  .brand { display: flex; align-items: center; gap: 0.7rem; text-decoration: none; font-family: var(--display); font-size: 1.35rem; color: var(--chalk); }
+  nav { display: flex; gap: 1.6rem; margin-left: auto; }
+  nav a { text-decoration: none; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--mist); }
+  nav a:hover { color: var(--chalk); }
+  .topbar-cta { padding: 0.6rem 1.1rem; }
+  @media (max-width: 760px) { nav { display: none; } .topbar-cta { margin-left: auto; } }
+
+  /* Hero */
+  .hero { padding-block: clamp(3rem, 8vw, 6rem) 2.5rem; }
+  .hero-grid { display: grid; grid-template-columns: 1.1fr 1fr; gap: clamp(2rem, 5vw, 4rem); align-items: center; }
+  .hero-copy { display: grid; gap: 1.4rem; min-width: 0; }
+  .hero h1 { font-size: clamp(3.2rem, 9vw, 6.5rem); font-weight: 500; letter-spacing: -0.01em; }
+  .lede { color: var(--mist); font-size: 1.05rem; max-width: 34rem; }
+  .hero-cta { display: flex; flex-wrap: wrap; gap: 0.8rem; }
+  .court { margin: 0; color: var(--olive); min-width: 0; }
+  .court svg { width: 100%; height: auto; overflow: visible; }
+  .court .net { stroke: var(--sage); }
+  .court .ball { fill: var(--sage); }
+  .court .dims { fill: var(--mist); stroke: var(--line); font-family: var(--body); }
+  .court .dims text { stroke: none; }
+  @media (prefers-reduced-motion: no-preference) {
+    .court .ball { animation: rally 7s ease-in-out infinite; }
+    @keyframes rally {
+      0%, 100% { transform: translate(0, 0); }
+      25% { transform: translate(-150px, 70px); }
+      50% { transform: translate(40px, 110px); }
+      75% { transform: translate(-120px, 10px); }
+    }
+  }
+  .areas { display: flex; flex-wrap: wrap; gap: 0.5rem 1.6rem; margin-top: clamp(2.5rem, 6vw, 4rem); padding-top: 1.4rem; border-top: 1px solid var(--line); }
+  .areas span { font-size: 0.72rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--mist); }
+  @media (max-width: 860px) { .hero-grid { grid-template-columns: 1fr; } }
+
+  /* Fixture board */
+  .games { background: var(--pine); border-block: 1px solid var(--line); }
+  .board { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+  .fixture {
+    display: grid; grid-template-columns: 5.5rem minmax(0, 1fr) 12rem 10rem; gap: 1.5rem; align-items: center;
+    padding-block: 1.6rem; border-bottom: 1px solid var(--line);
+  }
+  .when { display: grid; justify-items: start; line-height: 1; gap: 0.25rem; }
+  .dow, .mon { font-size: 0.7rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--olive); font-weight: 600; }
+  .day { font-family: var(--display); font-size: 3.2rem; font-variant-numeric: lining-nums tabular-nums; }
+  .what { display: grid; gap: 0.45rem; min-width: 0; }
+  .what h3 { font-size: 1.7rem; }
+  .meta { display: flex; flex-wrap: wrap; gap: 0.2rem 1.2rem; color: var(--mist); font-size: 0.9rem; }
+  .meta a { color: var(--sage); }
+  .chips { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .chip { font-size: 0.68rem; letter-spacing: 0.14em; text-transform: uppercase; padding: 0.3rem 0.6rem; border: 1px solid var(--line); border-radius: 999px; color: var(--sage); }
+  .chip-level { background: var(--moss); border-color: transparent; color: var(--chalk); }
+  .spots { display: grid; gap: 0.5rem; }
+  .dots { display: flex; flex-wrap: wrap; gap: 4px; max-width: 6.5rem; }
+  .dots i { width: 9px; height: 9px; border-radius: 50%; border: 1px solid var(--olive); }
+  .dots i.on { background: var(--olive); }
+  .spots-label { font-size: 0.78rem; color: var(--mist); font-variant-numeric: tabular-nums; }
+  .book { display: grid; gap: 0.6rem; justify-items: end; }
+  .price { font-family: var(--display); font-size: 1.7rem; font-variant-numeric: lining-nums; }
+  .fixture.full .what h3, .fixture.full .price { color: var(--mist); }
+  .board-empty { padding-block: 2rem; color: var(--mist); }
+  .board-empty a { color: var(--sage); }
+  @media (max-width: 900px) {
+    .fixture { grid-template-columns: 4.5rem minmax(0, 1fr); gap: 1rem 1.2rem; }
+    .spots { grid-column: 2; }
+    .book { grid-column: 2; display: flex; align-items: center; justify-content: space-between; }
+  }
+
+  /* How it works: a real sequence, so it's numbered */
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2rem; counter-reset: step; }
+  .steps li { display: grid; gap: 0.7rem; align-content: start; padding-top: 1.2rem; border-top: 1px solid var(--olive); counter-increment: step; }
+  .steps li::before { content: 'Round ' counter(step); font-size: 0.7rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--olive); font-weight: 600; }
+  .steps h3 { font-size: 1.8rem; }
+  .steps p { color: var(--mist); }
+  @media (max-width: 760px) { .steps { grid-template-columns: 1fr; } }
+
+  /* Gallery */
+  .gallery { padding-block: 0 clamp(3.5rem, 8vw, 6rem); }
+  .gallery-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr)); gap: 0.8rem; }
+  .gallery figure { margin: 0; }
+  .gallery img { aspect-ratio: 4 / 5; object-fit: cover; width: 100%; border-radius: 4px; }
+  .gallery figcaption { font-size: 0.8rem; color: var(--mist); padding-top: 0.4rem; }
+
+  /* About + venues */
+  .about { border-top: 1px solid var(--line); }
+  .about-grid { display: grid; grid-template-columns: 1.3fr 1fr; gap: clamp(2rem, 6vw, 5rem); }
+  .about-copy { display: grid; gap: 1.2rem; align-content: start; max-width: 38rem; }
+  .about-copy h2 { font-size: clamp(2.2rem, 5vw, 3.4rem); }
+  .about-copy p:last-child { color: var(--mist); }
+  .venues { display: grid; gap: 1rem; align-content: start; }
+  .venues ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.2rem; }
+  .venues li { padding: 1.3rem; background: var(--pine); border: 1px solid var(--line); border-radius: 6px; display: grid; gap: 0.3rem; }
+  .venues h3 { font-size: 1.5rem; }
+  .venues h3 a { color: var(--chalk); text-decoration-color: var(--olive); }
+  .venue-meta { font-size: 0.75rem; letter-spacing: 0.18em; text-transform: uppercase; color: var(--olive); }
+  .venue-note { color: var(--mist); font-size: 0.9rem; }
+  @media (max-width: 860px) { .about-grid { grid-template-columns: 1fr; } }
+
+  /* FAQ */
+  .faq { background: var(--pine); border-block: 1px solid var(--line); }
+  .faq-grid { display: grid; grid-template-columns: 1fr 1.5fr; gap: 2rem 4rem; }
+  .faq-list { border-top: 1px solid var(--line); min-width: 0; }
+  details { border-bottom: 1px solid var(--line); }
+  summary { cursor: pointer; list-style: none; padding-block: 1.2rem; font-family: var(--display); font-size: 1.45rem; display: flex; justify-content: space-between; gap: 1rem; }
+  summary::-webkit-details-marker { display: none; }
+  summary::after { content: '+'; color: var(--olive); font-family: var(--body); font-weight: 400; }
+  details[open] summary::after { content: '–'; }
+  details p { padding-bottom: 1.3rem; color: var(--mist); max-width: 38rem; }
+  @media (max-width: 860px) { .faq-grid { grid-template-columns: 1fr; } }
+
+  /* Join */
+  .join-inner { display: grid; justify-items: center; text-align: center; gap: 1.3rem; }
+  .join-inner img { width: 9rem; height: auto; }
+  .join h2 { font-size: clamp(2.2rem, 5vw, 3.6rem); max-width: 22ch; }
+  .join p { color: var(--mist); max-width: 36rem; }
+  .join .hero-cta { justify-content: center; }
+
+  .foot { border-top: 1px solid var(--line); }
+  .foot-inner { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.6rem; padding-block: 1.6rem; font-size: 0.8rem; color: var(--mist); }
+  .foot a { color: var(--sage); }
+</style>
