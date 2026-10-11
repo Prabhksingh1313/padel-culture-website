@@ -7,7 +7,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
   getFirestore, doc, getDoc, setDoc, collection, getDocs, query, orderBy, where, serverTimestamp,
-  runTransaction, arrayUnion,
+  runTransaction, arrayUnion, deleteDoc,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const config = JSON.parse(document.getElementById('fb-config').textContent);
@@ -193,6 +193,20 @@ export async function cancelBooking(user, gameId) {
     tx.set(gRef, { spots: data.spots, booked: Math.max(0, (data.booked || 1) - 1) });
     tx.delete(bRef);
   });
+}
+
+// ---------- Waitlist ----------
+// waitlist/{gameId}__{uid}: { gameId, uid, name, createdAt } — public (first name + initial only)
+export async function listWaitlist() {
+  const snap = await getDocs(collection(db, 'waitlist'));
+  const ms = (t) => (t && t.toMillis ? t.toMillis() : Date.now());
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() })).sort((a, b) => ms(a.createdAt) - ms(b.createdAt));
+}
+export async function joinWaitlist(user, name, gameId) {
+  await setDoc(doc(db, 'waitlist', bookingId(gameId, user.uid)), { gameId, uid: user.uid, name, createdAt: serverTimestamp() });
+}
+export async function leaveWaitlist(uid, gameId) {
+  await deleteDoc(doc(db, 'waitlist', bookingId(gameId, uid)));
 }
 
 export function logout() { return ready ? signOut(auth) : Promise.resolve(); }

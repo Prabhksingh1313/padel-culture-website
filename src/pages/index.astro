@@ -143,10 +143,12 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
                   ) : (
                     <>
                       <button type="button" class="btn btn-solid b-add" data-id={g.id} hidden={full}>Book spot</button>
-                      <a class="btn btn-ghost b-wait" href={waitHref(g)} target="_blank" rel="noopener" hidden={!full}>Join waitlist</a>
+                      <button type="button" class="btn btn-ghost b-wait" data-id={g.id} data-href={waitHref(g)} hidden={!full}>Join waitlist</button>
                     </>
                   )}
                   <span class="booked-note" hidden>You're booked ✓</span>
+                  <span class="wait-note" hidden></span>
+                  <button type="button" class="linkbtn b-unwait" data-id={g.id} hidden>Leave waitlist</button>
                   <button type="button" class="linkbtn b-leave" data-id={g.id} hidden>Remove me from this game</button>
                 </div>
               </li>
@@ -267,6 +269,8 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
 
     const booked = {};   // gameId -> online bookings (live)
     const mine = new Set();
+    let waitlist = [];   // every waitlist entry, oldest first
+    let myUid = null;
 
     function paint() {
       const inCart = new Set(cart.get());
@@ -278,7 +282,9 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
         const full = r.dataset.closed === '1' || left <= 0;
         r.classList.toggle('full', full);
         r.querySelectorAll('.dots i').forEach((d, i) => d.classList.toggle('on', i < taken));
-        r.querySelector('.spots-label').textContent = full ? 'Full · waitlist' : `${left} of ${spots} spot${spots === 1 ? '' : 's'} left`;
+        const queue = waitlist.filter((w) => w.gameId === id);
+        const myPlace = myUid ? queue.findIndex((w) => w.uid === myUid) + 1 : 0;
+        r.querySelector('.spots-label').textContent = full ? (queue.length ? `Full · ${queue.length} on waitlist` : 'Full · waitlist open') : `${left} of ${spots} spot${spots === 1 ? '' : 's'} left`;
         const add = r.querySelector('.b-add');
         const wait = r.querySelector('.b-wait');
         const note = r.querySelector('.booked-note');
@@ -295,7 +301,15 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
           add.classList.toggle('btn-ghost', inCart.has(id));
           add.classList.toggle('btn-solid', !inCart.has(id));
         }
-        if (wait) wait.hidden = !full || isMine;
+        const onWait = myPlace > 0 && !isMine;
+        if (wait) wait.hidden = !full || isMine || onWait;
+        const wnote = r.querySelector('.wait-note');
+        if (wnote) {
+          wnote.hidden = !onWait;
+          wnote.textContent = full ? `You're #${myPlace} on the waitlist` : 'A spot has opened. Book it before it goes.';
+        }
+        const unwait = r.querySelector('.b-unwait');
+        if (unwait) unwait.hidden = !onWait;
       });
     }
 
@@ -339,11 +353,45 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
             b.textContent = 'Couldn\'t remove you. Try again';
           }
         }));
+        try { waitlist = await fb.listWaitlist(); } catch (e) { console.error(e); }
+        paint();
+        document.querySelectorAll('.b-wait').forEach((b) => b.addEventListener('click', async () => {
+          if (!me) { location.href = '/join?next=/'; return; }
+          b.disabled = true;
+          try {
+            const { displayName } = await import('/js/rating.js');
+            const p = await fb.getPlayer(me.uid);
+            const name = displayName((p && p.name) || 'Player');
+            await fb.joinWaitlist(me, name, b.dataset.id);
+            waitlist.push({ gameId: b.dataset.id, uid: me.uid, name });
+            paint();
+          } catch (e) {
+            console.error(e);
+            // If the on-site waitlist isn't available, fall back to a WhatsApp message.
+            window.open(b.dataset.href, '_blank', 'noopener');
+          }
+          b.disabled = false;
+        }));
+        document.querySelectorAll('.b-unwait').forEach((b) => b.addEventListener('click', async () => {
+          if (!me) return;
+          b.disabled = true;
+          try {
+            await fb.leaveWaitlist(me.uid, b.dataset.id);
+            waitlist = waitlist.filter((w) => !(w.gameId === b.dataset.id && w.uid === me.uid));
+            paint();
+          } catch (e) { console.error(e); }
+          b.disabled = false;
+        }));
         fb.watchUser(async (user) => {
           me = user;
+          myUid = user ? user.uid : null;
           mine.clear();
           if (user) {
             try { (await fb.listMyBookings(user.uid)).forEach((b) => mine.add(b.gameId)); } catch (e) { console.error(e); }
+            // Once a waitlisted player has a spot, take them off the waitlist.
+            for (const w of waitlist.filter((x) => x.uid === user.uid && mine.has(x.gameId))) {
+              try { await fb.leaveWaitlist(user.uid, w.gameId); waitlist = waitlist.filter((x) => x !== w); } catch (e) { console.error(e); }
+            }
           }
           paint();
         });
@@ -403,6 +451,7 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
   .spots-label { font-size: 0.78rem; color: var(--mist); font-variant-numeric: tabular-nums; }
   .book { display: grid; gap: 0.6rem; justify-items: end; }
   .price { font-family: var(--display); font-size: 1.7rem; font-variant-numeric: lining-nums; }
+  .wait-note { font-size: 0.85rem; font-weight: 600; color: var(--sage); }
   .fixture.full .what h3, .fixture.full .price { color: var(--mist); }
   .b-leave { background: none; border: 0; padding: 0; font: inherit; font-size: 0.8rem; color: var(--sage); text-decoration: underline; cursor: pointer; }
   .b-leave:disabled { opacity: 0.6; cursor: progress; }

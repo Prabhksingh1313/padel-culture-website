@@ -100,5 +100,19 @@ service cloud.firestore {
            == get(gamePath(resource.data.gameId)).data.booked - 1;
       allow update, delete: if isAdmin();
     }
+
+    // Waitlist: public (first name + initial only), one entry per player per game.
+    match /waitlist/{wid} {
+      allow read: if true;
+      allow create: if signedIn()
+        && wid == request.resource.data.gameId + '__' + request.auth.uid
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.keys().hasOnly(['gameId', 'uid', 'name', 'createdAt'])
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 40
+        && request.resource.data.createdAt == request.time;
+      allow delete: if isAdmin() || (signedIn() && resource.data.uid == request.auth.uid);
+    }
   }
 }
