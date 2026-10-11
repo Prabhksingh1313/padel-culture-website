@@ -6,8 +6,8 @@ venue: Skyball Padel
 area: West Delhi
 format: Americano
 level: All levels
-price: 800
-spots: 16
+price: 1000
+spots: 8
 reserved: 0
 status: open
 ---

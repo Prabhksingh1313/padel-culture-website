@@ -25,6 +25,11 @@ function bookHref(g: (typeof games)[number]) {
   if (waBase) return `${waBase}?text=${encodeURIComponent(msg)}`;
   return site.whatsappGroupLink || site.instagram;
 }
+function waitHref(g: (typeof games)[number]) {
+  if (!waBase) return bookHref(g);
+  const msg = `Hi Padel Culture! Please add me to the waitlist for "${g.data.title}" on ${fmt(g.data.date, { weekday: 'long', day: 'numeric', month: 'long' })} at ${g.data.venue}.`;
+  return `${waBase}?text=${encodeURIComponent(msg)}`;
+}
 const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURIComponent('Hi! Please add me to the Padel Culture community.')}` : site.instagram);
 
 const jsonld = [
@@ -141,7 +146,7 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
                   ) : (
                     <>
                       <button type="button" class="btn btn-solid b-add" data-id={g.id} hidden={full}>Book spot</button>
-                      <a class="btn btn-ghost b-wait" href={bookHref(g)} target="_blank" rel="noopener" hidden={!full}>Join waitlist</a>
+                      <a class="btn btn-ghost b-wait" href={waitHref(g)} target="_blank" rel="noopener" hidden={!full}>Join waitlist</a>
                     </>
                   )}
                   <span class="booked-note" hidden>You're booked ✓</span>
