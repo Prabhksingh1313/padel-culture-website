@@ -335,7 +335,7 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
           if (!me) return;
           if (b.dataset.confirming !== '1') {
             b.dataset.confirming = '1';
-            b.textContent = 'Tap again to confirm';
+            b.textContent = 'Tap again to remove';
             setTimeout(() => { if (b.dataset.confirming === '1' && !b.disabled) { b.dataset.confirming = ''; b.textContent = 'Remove me from this game'; } }, 5000);
             return;
           }
