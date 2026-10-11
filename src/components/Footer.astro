@@ -5,6 +5,7 @@ import site from '../data/site.json';
     <div class="wrap foot-inner">
       <span>© {new Date().getFullYear()} Padel Culture · West Delhi</span>
       <span>
+        {site.whatsappGroupLink && <><a href={site.whatsappGroupLink} target="_blank" rel="noopener">WhatsApp community</a> · </>}
         <a href={site.instagram} target="_blank" rel="noopener">{site.instagramHandle}</a>
         {site.email && <span> · {site.email}</span>}
       </span>

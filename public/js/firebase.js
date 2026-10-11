@@ -7,7 +7,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
   getFirestore, doc, getDoc, setDoc, collection, getDocs, query, orderBy, where, serverTimestamp,
-  runTransaction,
+  runTransaction, arrayUnion,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const config = JSON.parse(document.getElementById('fb-config').textContent);
@@ -113,6 +113,7 @@ export async function saveRating(user, name, result, answers) {
     ratingStatus: 'provisional',
     answers,
     ratedAt: serverTimestamp(),
+    ratingHistory: arrayUnion({ r: result.rating, s: 'provisional', at: Date.now(), by: 'questionnaire' }),
   }, { merge: true });
   await setDoc(doc(db, 'leaderboard', user.uid), {
     name,
@@ -125,7 +126,7 @@ export async function saveRating(user, name, result, answers) {
 
 // Organisers only: set a player's rating and publish it to the leaderboard.
 export async function adminSetRating(uid, publicName, rating, tier, status) {
-  await setDoc(doc(db, 'players', uid), { rating, tier, ratingStatus: status, ratedAt: serverTimestamp() }, { merge: true });
+  await setDoc(doc(db, 'players', uid), { rating, tier, ratingStatus: status, ratedAt: serverTimestamp(), ratingHistory: arrayUnion({ r: rating, s: status, at: Date.now(), by: 'organiser' }) }, { merge: true });
   await setDoc(doc(db, 'leaderboard', uid), { name: publicName, rating, tier, status, updatedAt: serverTimestamp() }, { merge: true });
 }
 

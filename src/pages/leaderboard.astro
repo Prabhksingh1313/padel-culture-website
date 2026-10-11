@@ -37,6 +37,19 @@ const tiers = [
       </a>
     </div>
 
+    <section class="history" id="s-history" hidden aria-labelledby="h-history">
+      <div class="history-head">
+        <h2 id="h-history">Your rating over time</h2>
+        <p class="muted" id="t-history-read" aria-live="polite"></p>
+      </div>
+      <div id="t-history-chart"></div>
+      <p class="muted" id="t-history-note"></p>
+      <details>
+        <summary>Show as a list</summary>
+        <div class="table-wrap"><table><thead><tr><th>Date</th><th class="num">Rating</th><th>Tier</th><th>Status</th><th>From</th></tr></thead><tbody id="t-history-rows"></tbody></table></div>
+      </details>
+    </section>
+
     <ol class="ladder" aria-label="Rating tiers">
       {tiers.map((t, i) => (
         <li>
@@ -89,6 +102,52 @@ const tiers = [
         : `<tr><td colspan="5" class="muted">${rows.length ? 'No players in this tier yet.' : 'No ratings yet. <a href="/join">Be the first to get rated.</a>'}</td></tr>`;
     }
 
+    // ----- Your rating over time (only the logged-in player sees their own) -----
+    const TIER_NAMES = [[1.4, 'First Serve'], [2.4, 'Rally Maker'], [3.4, 'Wall Walker'], [4.4, 'Bandeja Crafter'], [5.4, 'Víbora'], [7, 'Por Tres']];
+    const tierName = (r) => (TIER_NAMES.find(([max]) => r <= max + 0.05) || TIER_NAMES[5])[1];
+    const dateText = (ms) => new Date(ms).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    const pointText = (p) => `${p.r.toFixed(1)} · ${tierName(p.r)} · ${p.s === 'verified' ? 'Verified' : 'Provisional'} · ${dateText(p.at)} · ${p.by === 'organiser' ? 'set by an organiser' : 'from the questionnaire'}`;
+
+    function drawHistory(player) {
+      let pts = Array.isArray(player.ratingHistory) ? player.ratingHistory.filter((p) => typeof p.r === 'number' && typeof p.at === 'number') : [];
+      if (!pts.length && typeof player.rating === 'number') {
+        const at = player.ratedAt && player.ratedAt.toMillis ? player.ratedAt.toMillis() : Date.now();
+        pts = [{ r: player.rating, s: player.ratingStatus || 'provisional', at, by: 'questionnaire' }];
+      }
+      if (!pts.length) { $('s-history').hidden = true; return; }
+      pts = pts.slice().sort((a, b) => a.at - b.at);
+      const W = 640, H = 220, L = 34, R = 52, T = 14, B = 30;
+      const rs = pts.map((p) => p.r);
+      let lo = Math.max(0, Math.floor(Math.min(...rs) - 0.5)), hi = Math.min(7, Math.ceil(Math.max(...rs) + 0.5));
+      if (hi - lo < 2) { if (hi < 7) hi = Math.min(7, lo + 2); else lo = hi - 2; }
+      const t0 = pts[0].at, t1 = pts[pts.length - 1].at;
+      const x = (p, i) => (t1 === t0 ? (pts.length === 1 ? (L + W - R) / 2 : L + (i / (pts.length - 1)) * (W - L - R)) : L + ((p.at - t0) / (t1 - t0)) * (W - L - R));
+      const y = (r) => T + (1 - (r - lo) / (hi - lo)) * (H - T - B);
+      const xy = pts.map((p, i) => [x(p, i), y(p.r)]);
+      let grid = '';
+      for (let v = lo; v <= hi; v++) {
+        grid += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" style="stroke:var(--line)" stroke-width="1"/><text x="${L - 8}" y="${y(v) + 4}" text-anchor="end" font-size="11" style="fill:var(--mist)">${v}</text>`;
+      }
+      const last = xy[xy.length - 1];
+      const line = xy.length > 1 ? `<polyline points="${xy.map((p) => p.join(',')).join(' ')}" fill="none" style="stroke:var(--sage)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>` : '';
+      const dots = xy.map(([cx, cy], i) => `<circle cx="${cx}" cy="${cy}" r="5" style="fill:var(--sage);stroke:var(--forest)" stroke-width="2"/><circle class="hit" data-i="${i}" cx="${cx}" cy="${cy}" r="16" fill="transparent" tabindex="0" role="img" aria-label="${esc(pointText(pts[i]))}"/>`).join('');
+      const dates = `<text x="${xy[0][0]}" y="${H - 8}" text-anchor="${xy.length > 1 ? 'start' : 'middle'}" font-size="11" style="fill:var(--mist)">${dateText(t0)}</text>` + (t1 !== t0 ? `<text x="${last[0]}" y="${H - 8}" text-anchor="end" font-size="11" style="fill:var(--mist)">${dateText(t1)}</text>` : '');
+      $('t-history-chart').innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="group" aria-label="Line chart of your rating over time" style="width:100%;height:auto;max-width:44rem;display:block">${grid}${line}${dots}<text x="${last[0] + 10}" y="${last[1] + 5}" font-size="14" font-weight="600" style="fill:var(--chalk)">${pts[pts.length - 1].r.toFixed(1)}</text>${dates}</svg>`;
+      const read = (i) => { $('t-history-read').textContent = pointText(pts[i]); };
+      read(pts.length - 1);
+      $('t-history-chart').querySelectorAll('.hit').forEach((el) => {
+        const on = () => read(Number(el.dataset.i));
+        el.addEventListener('pointerenter', on); el.addEventListener('focus', on); el.addEventListener('click', on);
+        el.addEventListener('pointerleave', () => read(pts.length - 1));
+      });
+      const change = pts[pts.length - 1].r - pts[0].r;
+      $('t-history-note').textContent = pts.length === 1
+        ? 'This is your starting rating. A new point is added every time your rating changes after a game.'
+        : `${change === 0 ? 'No change' : (change > 0 ? 'Up ' : 'Down ') + Math.abs(change).toFixed(1)} since ${dateText(t0)}, over ${pts.length} updates. Hover or tap a point for details.`;
+      $('t-history-rows').innerHTML = pts.slice().reverse().map((p) => `<tr><td>${dateText(p.at)}</td><td class="num">${p.r.toFixed(1)}</td><td>${esc(tierName(p.r))}</td><td>${p.s === 'verified' ? 'Verified' : 'Provisional'}</td><td>${p.by === 'organiser' ? 'Organiser' : 'Questionnaire'}</td></tr>`).join('');
+      $('s-history').hidden = false;
+    }
+
     document.querySelectorAll('.tier').forEach((b) => b.addEventListener('click', () => {
       filter = filter === b.dataset.tier ? '' : b.dataset.tier;
       render();
@@ -121,6 +180,8 @@ const tiers = [
             $('t-me-rank').textContent = `Ranked #${mine.rank} of ${rows.length}`;
           }
           render();
+          $('s-history').hidden = true;
+          if (user) fb.getPlayer(user.uid).then((p) => { if (p) drawHistory(p); }).catch((e) => console.error(e));
         });
       } catch (e) {
         console.error(e);
@@ -133,6 +194,13 @@ const tiers = [
 
 <style>
   .lb { display: grid; gap: 2rem; padding-block: clamp(2.5rem, 7vw, 5rem); }
+  .history { display: grid; gap: 0.8rem; padding: 1.4rem; border: 1px solid var(--line); border-radius: 8px; background: var(--pine); }
+  .history-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem 1.5rem; }
+  .history h2 { font-size: 1.8rem; }
+  .history .muted { font-size: 0.9rem; }
+  .history summary { cursor: pointer; font-size: 0.9rem; color: var(--sage); }
+  .history details .table-wrap { margin-top: 0.8rem; }
+  .history :global(.hit) { cursor: pointer; outline-offset: 2px; }
   .lb-head { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 20rem); gap: 2rem; align-items: end; }
   .lb-intro { display: grid; gap: 1rem; max-width: 36rem; }
   .lb-intro h1 { font-size: clamp(2.8rem, 7vw, 4.6rem); }

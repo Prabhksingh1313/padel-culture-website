@@ -200,6 +200,16 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
           <h2>Courts were here. The community wasn't.</h2>
           <p>{site.about}</p>
         </div>
+        <div class="guide">
+          <p class="eyebrow">Padel guide</p>
+          <h3>New to the game or the formats?</h3>
+          <div class="guide-cards">
+            <a href="/learn#history"><strong>History of padel</strong><span>From a backyard in Acapulco in 1969 to courts across India.</span></a>
+            <a href="/learn#americano"><strong>Americano</strong><span>New partner every round. Every point counts for you.</span></a>
+            <a href="/learn#mexicano"><strong>Mexicano</strong><span>The leaderboard picks your next match, so games get closer.</span></a>
+            <a href="/learn#king"><strong>King of the Court</strong><span>Win and move up a court. Lose and move down.</span></a>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -228,7 +238,8 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
         <h2>Games fill up on WhatsApp first.</h2>
         <p>Join the community to hear about new Americanos, beginner sessions and tournaments in West Delhi before they're posted anywhere else.</p>
         <div class="hero-cta">
-          <a class="btn btn-solid" href="/join">Join the community</a>
+          {site.whatsappGroupLink && <a class="btn btn-solid" href={site.whatsappGroupLink} target="_blank" rel="noopener">Join the WhatsApp community</a>}
+          <a class={site.whatsappGroupLink ? 'btn btn-ghost' : 'btn btn-solid'} href="/join">Sign up and get rated</a>
           <a class="btn btn-ghost" href={site.instagram} target="_blank" rel="noopener">Instagram {site.instagramHandle}</a>
         </div>
       </div>
@@ -419,7 +430,14 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
 
   /* About */
   .about { border-top: 1px solid var(--line); }
-  .about-grid { display: grid; }
+  .about-grid { display: grid; gap: 3rem; }
+  .guide { display: grid; gap: 1rem; }
+  .guide h3 { font-size: clamp(1.6rem, 3.5vw, 2.2rem); }
+  .guide-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 1rem; }
+  .guide-cards a { display: grid; gap: 0.4rem; padding: 1.2rem; border: 1px solid var(--line); border-radius: 8px; background: var(--pine); text-decoration: none; color: var(--chalk); }
+  .guide-cards a:hover { background: var(--moss); }
+  .guide-cards strong { font-family: var(--display); font-size: 1.4rem; font-weight: 600; }
+  .guide-cards span { color: var(--mist); font-size: 0.9rem; line-height: 1.5; }
   .about-copy { display: grid; gap: 1.2rem; align-content: start; max-width: 38rem; }
   .about-copy h2 { font-size: clamp(2.2rem, 5vw, 3.4rem); }
   .about-copy p:last-child { color: var(--mist); }
