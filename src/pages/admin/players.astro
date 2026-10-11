@@ -58,6 +58,14 @@ const games = (await getCollection('games')).map((g) => ({
         <input id="f-search" type="search" placeholder="Search name, number or PIN code" aria-label="Search players" />
         <button class="btn btn-ghost" id="b-csv" type="button">Download CSV</button>
       </div>
+      <div class="ratings-bar">
+        <strong>Ratings</strong>
+        <button class="btn btn-ghost" id="b-sheet" type="button">Download ratings sheet</button>
+        <label class="btn btn-ghost" for="f-sheet">Upload ratings sheet</label>
+        <input id="f-sheet" type="file" accept=".csv,text/csv" hidden />
+        <span class="muted">Edit one player with the Edit link, or change the Rating column in the sheet in Excel, save it as CSV and upload it.</span>
+      </div>
+      <p class="note" id="t-note" hidden></p>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Name</th><th>Mobile</th><th>PIN code</th><th>Rating</th><th>Joined</th><th>Last login</th></tr></thead>
@@ -84,12 +92,57 @@ const games = (await getCollection('games')).map((g) => ({
     const fmt = (ts) => ts && ts.toDate ? ts.toDate().toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     let players = [];
+    let editing = null;
+    const { tierFor, displayName } = await import('/js/rating.js');
+    const note = (msg) => { $('t-note').textContent = msg || ''; $('t-note').hidden = !msg; };
+    const last10 = (v) => String(v ?? '').replace(/\D/g, '').slice(-10);
+    const statusLabel = (p) => (p.ratingStatus === 'verified' ? 'Verified' : 'Provisional');
+
+    async function setRating(p, value, status) {
+      const rating = Math.round(value * 10) / 10;
+      const tier = tierFor(rating).name;
+      await fb.adminSetRating(p.id, displayName(p.name), rating, tier, status);
+      Object.assign(p, { rating, tier, ratingStatus: status });
+    }
+
+    function ratingCell(p) {
+      const rated = typeof p.rating === 'number';
+      if (editing === p.id) {
+        return `<input id="e-rating" type="number" min="0" max="7" step="0.1" value="${rated ? p.rating : ''}" aria-label="Rating, 0 to 7" />
+          <select id="e-status" aria-label="Status"><option value="verified"${p.ratingStatus === 'verified' ? ' selected' : ''}>Verified</option><option value="provisional"${p.ratingStatus === 'verified' ? '' : ' selected'}>Provisional</option></select>
+          <button class="linkbtn" type="button" data-save="${esc(p.id)}">Save</button> <button class="linkbtn" type="button" data-cancel="1">Cancel</button>`;
+      }
+      return `${rated ? `${p.rating.toFixed(1)} · ${esc(p.tier)} · ${statusLabel(p)}` : '<span class="muted">Not rated</span>'} <button class="linkbtn" type="button" data-edit="${esc(p.id)}">Edit</button>`;
+    }
+
+    // Minimal CSV reader: handles quoted cells and commas inside quotes.
+    function parseCsv(text) {
+      const rows = []; let row = [], cell = '', q = false;
+      for (let i = 0; i < text.length; i++) {
+        const c = text[i];
+        if (q) {
+          if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; }
+          else if (c === '"') q = false;
+          else cell += c;
+        } else if (c === '"') q = true;
+        else if (c === ',') { row.push(cell); cell = ''; }
+        else if (c === '\n' || c === '\r') {
+          if (c === '\r' && text[i + 1] === '\n') i++;
+          row.push(cell); cell = '';
+          if (row.some((v) => v.trim() !== '')) rows.push(row);
+          row = [];
+        } else cell += c;
+      }
+      row.push(cell);
+      if (row.some((v) => v.trim() !== '')) rows.push(row);
+      return rows;
+    }
 
     function render() {
       const q = $('f-search').value.trim().toLowerCase();
       const rows = players.filter((p) => !q || [p.name, p.phone, p.pincode, p.area, p.tier].join(' ').toLowerCase().includes(q));
       $('t-count').textContent = rows.length;
-      $('t-rows').innerHTML = rows.map((p) => `<tr><td>${esc(p.name)}</td><td><a href="https://wa.me/${esc((p.phone || '').replace('+', ''))}" target="_blank" rel="noopener">${esc(p.phone)}</a></td><td>${esc(p.pincode || p.area)}</td><td>${typeof p.rating === 'number' ? `${p.rating.toFixed(1)} · ${esc(p.tier)}` : '<span class="muted">Not rated</span>'}</td><td>${fmt(p.createdAt)}</td><td>${fmt(p.lastLoginAt)}</td></tr>`).join('')
+      $('t-rows').innerHTML = rows.map((p) => `<tr><td>${esc(p.name)}</td><td><a href="https://wa.me/${esc((p.phone || '').replace('+', ''))}" target="_blank" rel="noopener">${esc(p.phone)}</a></td><td>${esc(p.pincode || p.area)}</td><td>${ratingCell(p)}</td><td>${fmt(p.createdAt)}</td><td>${fmt(p.lastLoginAt)}</td></tr>`).join('')
         || '<tr><td colspan="6" class="muted">No players yet.</td></tr>';
     }
 
@@ -160,6 +213,75 @@ const games = (await getCollection('games')).map((g) => ({
     });
     $('b-switch').addEventListener('click', () => fb.logout().then(() => location.reload()));
     $('f-search').addEventListener('input', render);
+
+    // Edit one player's rating in the table.
+    $('t-rows').addEventListener('click', async (e) => {
+      const t = e.target;
+      if (!t.dataset) return;
+      if (t.dataset.edit) { editing = t.dataset.edit; note(); render(); const el = $('e-rating'); if (el) el.focus(); return; }
+      if (t.dataset.cancel) { editing = null; render(); return; }
+      if (t.dataset.save) {
+        const p = players.find((x) => x.id === t.dataset.save);
+        const v = parseFloat($('e-rating').value);
+        if (!p || !(v >= 0 && v <= 7)) return note('Enter a rating between 0 and 7.');
+        const status = $('e-status').value;
+        t.disabled = true;
+        try {
+          await setRating(p, v, status);
+          editing = null;
+          note(`Saved: ${p.name} is now ${p.rating.toFixed(1)} · ${p.tier} · ${statusLabel(p)}. The leaderboard is updated.`);
+        } catch (ex) {
+          console.error(ex);
+          note(`Couldn't save the rating. (${(ex && ex.code) || 'unknown'})`);
+        }
+        render();
+      }
+    });
+
+    // Ratings sheet: download, edit in Excel, save as CSV, upload.
+    const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    $('b-sheet').addEventListener('click', () => {
+      const lines = [['Name', 'Mobile', 'Rating', 'Status'].map(csvCell).join(',')]
+        .concat(players.map((p) => [p.name, last10(p.phone), typeof p.rating === 'number' ? p.rating.toFixed(1) : '', typeof p.rating === 'number' ? statusLabel(p) : ''].map(csvCell).join(',')));
+      const url = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv' }));
+      const a = Object.assign(document.createElement('a'), { href: url, download: `padel-culture-ratings-${new Date().toISOString().slice(0, 10)}.csv` });
+      a.click(); URL.revokeObjectURL(url);
+    });
+    $('f-sheet').addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      e.target.value = '';
+      if (!file) return;
+      if (!/\.csv$/i.test(file.name)) return note('That file isn\'t a CSV. In Excel, use File → Save As → CSV, then upload that file.');
+      const rows = parseCsv((await file.text()).replace(/^\ufeff/, ''));
+      const head = (rows.shift() || []).map((h) => h.trim().toLowerCase());
+      const iMobile = head.findIndex((h) => h.includes('mobile') || h.includes('phone'));
+      const iRating = head.findIndex((h) => h.includes('rating'));
+      const iStatus = head.findIndex((h) => h.includes('status'));
+      if (iMobile < 0 || iRating < 0) return note('The sheet needs a Mobile column and a Rating column. Download the ratings sheet and edit that.');
+      let updated = 0, same = 0, failed = 0; const unknown = [], bad = [];
+      note('Updating ratings…');
+      for (const r of rows) {
+        const mobile = last10(r[iMobile]);
+        const raw = String(r[iRating] ?? '').trim();
+        if (!raw) continue;
+        const p = mobile.length === 10 && players.find((x) => last10(x.phone) === mobile);
+        if (!p) { unknown.push(r[iMobile] || '(blank)'); continue; }
+        const v = parseFloat(raw);
+        if (!(v >= 0 && v <= 7)) { bad.push(p.name); continue; }
+        const s = iStatus >= 0 ? String(r[iStatus] ?? '').trim().toLowerCase() : '';
+        const status = s.startsWith('verif') ? 'verified' : s.startsWith('prov') ? 'provisional' : (p.ratingStatus || 'provisional');
+        if (typeof p.rating === 'number' && Math.abs(p.rating - v) < 0.05 && (p.ratingStatus || 'provisional') === status) { same++; continue; }
+        try { await setRating(p, v, status); updated++; } catch (ex) { console.error(ex); failed++; }
+      }
+      render();
+      note([
+        `${updated} rating${updated === 1 ? '' : 's'} updated and published to the leaderboard.`,
+        same ? `${same} unchanged.` : '',
+        unknown.length ? `${unknown.length} mobile number${unknown.length === 1 ? '' : 's'} not found: ${unknown.slice(0, 5).join(', ')}${unknown.length > 5 ? '…' : ''}.` : '',
+        bad.length ? `Rating not between 0 and 7 for: ${bad.slice(0, 5).join(', ')}${bad.length > 5 ? '…' : ''}.` : '',
+        failed ? `${failed} couldn't be saved.` : '',
+      ].filter(Boolean).join(' '));
+    });
     $('b-csv').addEventListener('click', () => {
       const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
       const lines = [['Name', 'Mobile', 'PIN code', 'Rating', 'Tier', 'Joined', 'Last login'].map(cell).join(',')]
@@ -193,6 +315,12 @@ const games = (await getCollection('games')).map((g) => ({
   .table-wrap :global(td a) { color: var(--sage); }
   .muted, .table-wrap :global(.muted) { color: var(--mist); }
   .err { color: #9B2C1F; }
+  .ratings-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.8rem; margin-top: 1rem; }
+  .ratings-bar .muted { font-size: 0.85rem; flex: 1 1 18rem; }
+  .ratings-bar label.btn { cursor: pointer; }
+  .note { margin: 0.8rem 0; padding: 0.7rem 1rem; border: 1px solid var(--line); border-radius: 6px; background: var(--pine); }
+  .table-wrap :global(.linkbtn) { background: none; border: 0; padding: 0; margin-left: 0.5rem; font: inherit; color: var(--sage); text-decoration: underline; cursor: pointer; }
+  .table-wrap :global(td input), .table-wrap :global(td select) { width: auto; max-width: 6.5rem; padding: 0.3rem 0.5rem; font: inherit; color: var(--chalk); background: #fff; border: 1px solid var(--line); border-radius: 4px; }
   .bk-title { font-size: 2rem; margin-top: 2rem; }
   .bookings { display: grid; gap: 1rem; }
   .bookings :global(.bk-game) { padding: 1.2rem; border: 1px solid var(--line); border-radius: 8px; background: var(--pine); display: grid; gap: 0.4rem; }

@@ -13,7 +13,7 @@ const games = (await getCollection('games'))
   .map((g) => ({
     id: g.id,
     title: g.data.title,
-    when: `${fmt(g.data.date, { weekday: 'short', day: 'numeric', month: 'short' })} · ${fmt(g.data.date, { hour: 'numeric', minute: '2-digit', hour12: true })}${g.data.endTime ? ` – ${g.data.endTime}` : ''}`,
+    when: `${fmt(g.data.date, { weekday: 'short', day: 'numeric', month: 'short' })} · ${fmt(g.data.date, { hour: 'numeric', minute: '2-digit', hour12: true })}${g.data.endTime ? ` – ${to12(g.data.endTime)}` : ''}`,
     start: g.data.date.toISOString(),
     venue: `${g.data.venue}, ${g.data.area}`,
     format: g.data.format,
@@ -24,6 +24,7 @@ const games = (await getCollection('games'))
     closed: g.data.status === 'full',
   }));
 const waNumber = site.whatsappNumber.replace(/\D/g, '');
+function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!m) return t; const h = Number(m[1]); return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'am' : 'pm'}`; }
 ---
 <Base title="Cart | Padel Culture" description="Your Padel Culture game bookings.">
   <script type="application/json" id="fb-config" set:html={JSON.stringify(fb)} />

@@ -103,6 +103,9 @@ export async function savePlayer(user, fields, isNew) {
 
 // Saves a questionnaire result to the private player record and the public leaderboard.
 export async function saveRating(user, name, result, answers) {
+  // A rating set by an organiser is never overwritten by the questionnaire.
+  const cur = await getPlayer(user.uid);
+  if (cur && cur.ratingStatus && cur.ratingStatus !== 'provisional') return;
   await setDoc(doc(db, 'players', user.uid), {
     phone: user.phoneNumber,
     rating: result.rating,
@@ -118,6 +121,12 @@ export async function saveRating(user, name, result, answers) {
     status: 'provisional',
     updatedAt: serverTimestamp(),
   });
+}
+
+// Organisers only: set a player's rating and publish it to the leaderboard.
+export async function adminSetRating(uid, publicName, rating, tier, status) {
+  await setDoc(doc(db, 'players', uid), { rating, tier, ratingStatus: status, ratedAt: serverTimestamp() }, { merge: true });
+  await setDoc(doc(db, 'leaderboard', uid), { name: publicName, rating, tier, status, updatedAt: serverTimestamp() }, { merge: true });
 }
 
 export async function listLeaderboard() {

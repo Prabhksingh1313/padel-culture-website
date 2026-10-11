@@ -51,6 +51,7 @@ const jsonld = [
     offers: { '@type': 'Offer', price: g.data.price, priceCurrency: 'INR', url: bookHref(g), availability: g.data.status === 'full' ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock' },
   })),
 ];
+function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!m) return t; const h = Number(m[1]); return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'am' : 'pm'}`; }
 ---
 <Base jsonld={jsonld}>
   <Header joinHref={joinHref} />
@@ -117,7 +118,7 @@ const jsonld = [
                 <div class="what">
                   <h3>{g.data.title}</h3>
                   <p class="meta">
-                    <span>{fmt(g.data.date, { hour: 'numeric', minute: '2-digit', hour12: true })}{g.data.endTime && ` – ${g.data.endTime}`}</span>
+                    <span>{fmt(g.data.date, { hour: 'numeric', minute: '2-digit', hour12: true })}{g.data.endTime && ` – ${to12(g.data.endTime)}`}</span>
                     <span>
                       {g.data.mapLink ? <a href={g.data.mapLink} target="_blank" rel="noopener">{g.data.venue}</a> : g.data.venue}, {g.data.area}
                     </span>
@@ -177,6 +178,7 @@ const jsonld = [
             <p>Every point you win counts for you. The leaderboard is up at the end, then it's chai and photos.</p>
           </li>
         </ol>
+        <p class="how-more"><a href="/learn">How Mexicano, King of the Court and tournaments work</a></p>
       </div>
     </section>
 
