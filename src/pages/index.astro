@@ -149,20 +149,23 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
                       <button type="button" class="btn btn-ghost b-wait" data-id={g.id} data-href={waitHref(g)} hidden={!full}>Join waitlist</button>
                     </>
                   )}
-                  <div class="confirm" hidden>
-                    <p>Your spot will be confirmed once you pay. The host will message you on WhatsApp with the payment details.</p>
-                    <div class="confirm-actions">
-                      <button type="button" class="btn btn-solid b-confirm" data-id={g.id}>Confirm booking</button>
-                      <button type="button" class="linkbtn b-back">Cancel</button>
-                    </div>
-                    <p class="err" hidden></p>
-                  </div>
                   <span class="booked-note" hidden>Spot reserved · payment pending</span>
-                  <span class="booked-sub" hidden>Your spot will be confirmed once you pay. The host will message you with the payment details.</span>
                   <span class="wait-note" hidden></span>
                   <button type="button" class="linkbtn b-unwait" data-id={g.id} hidden>Leave waitlist</button>
                   <button type="button" class="linkbtn b-leave" data-id={g.id} hidden>Remove me from this game</button>
                 </div>
+                <div class="confirm" hidden>
+                  <div class="confirm-text">
+                    <strong>Confirm your spot · ₹{g.data.price.toLocaleString('en-IN')}</strong>
+                    <p>Your spot will be confirmed once you pay. The host will message you on WhatsApp with the payment details.</p>
+                    <p class="err" hidden></p>
+                  </div>
+                  <div class="confirm-actions">
+                    <button type="button" class="linkbtn b-back">Cancel</button>
+                    <button type="button" class="btn btn-solid b-confirm" data-id={g.id}>Confirm booking</button>
+                  </div>
+                </div>
+                <p class="booked-sub" hidden>Your spot will be confirmed once you pay. The host will message you on WhatsApp with the payment details.</p>
               </li>
             );
           })}
@@ -604,11 +607,15 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
   .fixture.full .what h3, .fixture.full .price { color: var(--mist); }
   .b-leave { background: none; border: 0; padding: 0; font: inherit; font-size: 0.8rem; color: var(--sage); text-decoration: underline; cursor: pointer; }
   .b-leave:disabled { opacity: 0.6; cursor: progress; }
-  .confirm { display: grid; gap: 0.6rem; max-width: 20rem; padding: 0.9rem 1rem; border: 1px solid var(--line); border-radius: 10px; background: var(--forest); text-align: left; justify-self: end; }
-  .confirm p { font-size: 0.85rem; color: var(--mist); line-height: 1.5; }
-  .confirm-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  .confirm { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem 2rem; padding: 1.1rem 1.3rem; background: #fff; border: 1px solid var(--line); border-left: 3px solid var(--olive); border-radius: 10px; }
+  .confirm[hidden], .booked-sub[hidden] { display: none; }
+  .confirm-text { display: grid; gap: 0.3rem; flex: 1 1 22rem; min-width: 0; }
+  .confirm-text strong { font-size: 0.95rem; color: var(--chalk); }
+  .confirm-text p { font-size: 0.88rem; color: var(--mist); line-height: 1.55; }
+  .confirm-actions { display: flex; align-items: center; gap: 1.2rem; flex: 0 0 auto; }
   .confirm .err { color: #9B2C1F; }
-  .booked-sub { font-size: 0.8rem; color: var(--mist); max-width: 18rem; text-align: right; line-height: 1.45; }
+  .b-back { background: none; border: 0; padding: 0; font: inherit; font-size: 0.85rem; color: var(--sage); text-decoration: underline; cursor: pointer; }
+  .booked-sub { grid-column: 1 / -1; margin: 0; padding: 0.8rem 1.1rem; font-size: 0.88rem; line-height: 1.55; color: var(--mist); background: #fff; border: 1px solid var(--line); border-left: 3px solid var(--sage); border-radius: 10px; }
   .booked-note { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--sage); }
   .board-empty { padding-block: 2rem; color: var(--mist); }
   .board-empty a { color: var(--sage); }
