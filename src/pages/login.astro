@@ -5,9 +5,9 @@
   <head>
     <meta charset="utf-8" />
     <meta name="robots" content="noindex" />
-    <meta http-equiv="refresh" content="0; url=/join" />
+    <meta http-equiv="refresh" content="0; url=/join?mode=login" />
     <title>Log in or join | Padel Culture</title>
-    <script is:inline>location.replace('/join' + location.search);</script>
+    <script is:inline>var q = new URLSearchParams(location.search); q.set('mode', 'login'); location.replace('/join?' + q.toString());</script>
   </head>
   <body><a href="/join">Continue to log in or join</a></body>
 </html>

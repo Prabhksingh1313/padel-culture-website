@@ -13,9 +13,18 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
   <Header />
   <main class="wrap join-page">
     <div class="intro">
-      <p class="eyebrow">Padel Culture members</p>
-      <h1>Log in or join.</h1>
-      <p>Enter your mobile number. If you're already a member, you'll log in with your password. If you're new, we'll sign you up and give you a Padel Culture Rating.</p>
+      <div id="i-join">
+        <p class="eyebrow">Join as a player</p>
+        <h1>Get on court with Padel Culture.</h1>
+        <p>Sign up with your mobile number. We'll verify it with a one-time SMS code, you'll set a password, and a few quick questions give you your Padel Culture Rating.</p>
+        <p class="switch">Already a member? <a href="/login">Log in</a></p>
+      </div>
+      <div id="i-login" hidden>
+        <p class="eyebrow">Members</p>
+        <h1>Welcome back.</h1>
+        <p>Log in with your mobile number and password to see your rating, your rank and your bookings.</p>
+        <p class="switch">New here? <a href="/join">Join as a player</a></p>
+      </div>
     </div>
 
     <div class="panel" aria-live="polite">
@@ -145,6 +154,10 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
     const pretty = (p) => '+91 ' + p.replace(/(\d{5})(\d{5})/, '$1 $2');
 
     // After logging in, go back to where the player came from (e.g. the cart), if given.
+    const loginMode = new URLSearchParams(location.search).get('mode') === 'login';
+    $('i-join').hidden = loginMode;
+    $('i-login').hidden = !loginMode;
+    if (loginMode) document.title = 'Log in | Padel Culture';
     const nextParam = new URLSearchParams(location.search).get('next');
     const nextUrl = nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//') ? nextParam : null;
 
@@ -379,6 +392,8 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
   .intro { display: grid; gap: 1.2rem; max-width: 30rem; }
   .intro h1 { font-size: clamp(2.8rem, 7vw, 4.8rem); }
   .intro p:not(.eyebrow) { color: var(--mist); }
+  .intro > div:not([hidden]) { display: grid; gap: 1.2rem; }
+  .intro .switch a { color: var(--sage); font-weight: 600; }
   .have a { color: var(--sage); font-weight: 500; }
   .panel { background: var(--pine); border: 1px solid var(--line); border-radius: 8px; padding: clamp(1.4rem, 4vw, 2.2rem); min-width: 0; }
   .panel form, .panel > div { display: grid; gap: 0.7rem; }
