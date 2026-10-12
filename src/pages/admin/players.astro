@@ -20,6 +20,7 @@ const games = (await getCollection('games')).map((g) => ({
     <header class="ahead">
       <a href="/" class="brand"><img src="/brand/padel-culture-logo-circle.svg" alt="" width="36" height="36" /> Padel Culture</a>
       <span class="eyebrow">Players</span>
+      <a class="site-admin" href="/admin/">Edit games &amp; site text →</a>
       <button class="linkbtn" id="b-logout" hidden>Log out</button>
     </header>
 
@@ -302,7 +303,8 @@ const games = (await getCollection('games')).map((g) => ({
   .admin { padding-block: 1.5rem 4rem; display: grid; gap: 1.5rem; }
   .ahead { display: flex; align-items: center; gap: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
   .brand { display: flex; align-items: center; gap: 0.6rem; text-decoration: none; font-family: var(--display); font-size: 1.3rem; }
-  .ahead .linkbtn { margin-left: auto; }
+  .site-admin { margin-left: auto; font-size: 0.85rem; color: var(--sage); }
+  .ahead .linkbtn { margin-left: 1rem; }
   h1 { font-size: 2.2rem; }
   .login { display: grid; gap: 0.8rem; max-width: 24rem; }
   .login form { display: grid; gap: 0.6rem; }
