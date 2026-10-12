@@ -69,6 +69,7 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
     <section class="hero">
       {hasVideo ? (
         <video class="hero-bg" autoplay muted loop playsinline preload="metadata" poster={hasPoster ? '/video/hero-poster.jpg' : undefined} aria-hidden="true">
+          <source src="/video/hero-tall.mp4" type="video/mp4" media="(max-aspect-ratio: 4/5)" />
           <source src="/video/hero.mp4" type="video/mp4" />
         </video>
       ) : (
@@ -319,6 +320,10 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
   <script type="application/json" id="fb-config" set:html={JSON.stringify(fbConfig)} />
 
   <script is:inline>
+    (() => {
+      const v = document.querySelector('video.hero-bg');
+      if (v && matchMedia('(prefers-reduced-motion: reduce)').matches) { v.removeAttribute('autoplay'); v.pause(); }
+    })();
     (() => {
       const tabs = [...document.querySelectorAll('.g-tab')];
       const pick = (t, focus) => {
