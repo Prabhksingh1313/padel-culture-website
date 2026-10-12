@@ -89,7 +89,7 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
       )}
       <div class="hero-shade" aria-hidden="true"></div>
       <div class="wrap hero-inner">
-        <p class="eyebrow">{site.tagline} · West Delhi</p>
+        <p class="eyebrow">{site.tagline}</p>
         <h1>{site.heroTitle}</h1>
         <p class="lede">{site.heroText}</p>
         <div class="hero-cta">
@@ -149,7 +149,16 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
                       <button type="button" class="btn btn-ghost b-wait" data-id={g.id} data-href={waitHref(g)} hidden={!full}>Join waitlist</button>
                     </>
                   )}
-                  <span class="booked-note" hidden>You're booked ✓</span>
+                  <div class="confirm" hidden>
+                    <p>Your spot will be confirmed once you pay. The host will message you on WhatsApp with the payment details.</p>
+                    <div class="confirm-actions">
+                      <button type="button" class="btn btn-solid b-confirm" data-id={g.id}>Confirm booking</button>
+                      <button type="button" class="linkbtn b-back">Cancel</button>
+                    </div>
+                    <p class="err" hidden></p>
+                  </div>
+                  <span class="booked-note" hidden>Spot reserved · payment pending</span>
+                  <span class="booked-sub" hidden>Your spot will be confirmed once you pay. The host will message you with the payment details.</span>
                   <span class="wait-note" hidden></span>
                   <button type="button" class="linkbtn b-unwait" data-id={g.id} hidden>Leave waitlist</button>
                   <button type="button" class="linkbtn b-leave" data-id={g.id} hidden>Remove me from this game</button>
@@ -359,7 +368,6 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
     })();
   </script>
   <script type="module" is:inline>
-    import * as cart from '/js/cart.js';
     const $ = (id) => document.getElementById(id);
     const rows = [...document.querySelectorAll('#board .fixture')];
 
@@ -376,9 +384,10 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
     const mine = new Set();
     let waitlist = [];   // every waitlist entry, oldest first
     let myUid = null;
+    let confirming = null;   // game the player is confirming
+    let fbm = null, me = null, authReady = false;
 
     function paint() {
-      const inCart = new Set(cart.get());
       rows.forEach((r) => {
         const id = r.dataset.id;
         const spots = +r.dataset.spots;
@@ -395,16 +404,17 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
         const note = r.querySelector('.booked-note');
         const isMine = mine.has(id);
         if (note) note.hidden = !isMine;
+        const sub = r.querySelector('.booked-sub');
+        if (sub) sub.hidden = !isMine;
+        const box = r.querySelector('.confirm');
+        if (box) box.hidden = !(confirming === id && !isMine && !full);
         const leave = r.querySelector('.b-leave');
         if (leave) {
           leave.hidden = !isMine;
           if (!isMine) { leave.dataset.confirming = ''; leave.disabled = false; leave.textContent = 'Remove me from this game'; }
         }
         if (add) {
-          add.hidden = full || isMine;
-          add.textContent = inCart.has(id) ? 'In cart · View' : 'Book spot';
-          add.classList.toggle('btn-ghost', inCart.has(id));
-          add.classList.toggle('btn-solid', !inCart.has(id));
+          add.hidden = full || isMine || confirming === id;
         }
         const onWait = myPlace > 0 && !isMine;
         if (wait) wait.hidden = !full || isMine || onWait;
@@ -418,13 +428,38 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
       });
     }
 
+    // Book spot -> confirm on the card (log in first if needed).
     document.querySelectorAll('.b-add').forEach((b) => b.addEventListener('click', () => {
-      const id = b.dataset.id;
-      if (cart.get().includes(id)) { location.href = '/cart'; return; }
-      cart.add(id);
+      if (!fbm || !authReady) return;
+      if (!me) { location.href = '/join?next=' + encodeURIComponent('/#games'); return; }
+      confirming = b.dataset.id;
       paint();
     }));
-    window.addEventListener('cart-change', paint);
+    document.querySelectorAll('.b-back').forEach((b) => b.addEventListener('click', () => { confirming = null; paint(); }));
+    document.querySelectorAll('.b-confirm').forEach((b) => b.addEventListener('click', async () => {
+      const id = b.dataset.id;
+      const row = b.closest('.fixture');
+      const errEl = row.querySelector('.confirm .err');
+      errEl.hidden = true;
+      b.disabled = true; b.textContent = 'Booking…';
+      try {
+        const { displayName } = await import('/js/rating.js');
+        const p = await fbm.getPlayer(me.uid);
+        await fbm.bookGame(me, displayName((p && p.name) || 'Player'), id, +row.dataset.spots);
+        mine.add(id);
+        booked[id] = (booked[id] || 0) + 1;
+        confirming = null;
+        waitlist = waitlist.filter((w) => !(w.gameId === id && w.uid === me.uid));
+        fbm.leaveWaitlist(me.uid, id).catch(() => {});
+      } catch (e) {
+        console.error(e);
+        errEl.textContent = fbm.friendlyError(e);
+        errEl.hidden = false;
+        if (e.code === 'already-booked') { mine.add(id); confirming = null; }
+      }
+      b.disabled = false; b.textContent = 'Confirm booking';
+      paint();
+    }));
     paint();
 
     // Live spot counts and the player's own bookings.
@@ -432,6 +467,7 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
     if (cfg.apiKey) {
       try {
         const fb = await import('/js/firebase.js');
+        fbm = fb;
         fb.listLeaderboard().then((list) => {
           const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
           $('lb-top').innerHTML = list.length
@@ -441,7 +477,6 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
         const counts = await fb.listGameCounts();
         Object.entries(counts).forEach(([id, g]) => { booked[id] = g.booked || 0; });
         paint();
-        let me = null;
         document.querySelectorAll('.b-leave').forEach((b) => b.addEventListener('click', async () => {
           if (!me) return;
           if (b.dataset.confirming !== '1') {
@@ -495,6 +530,7 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
         }));
         fb.watchUser(async (user) => {
           me = user;
+          authReady = true;
           myUid = user ? user.uid : null;
           mine.clear();
           if (user) {
@@ -568,6 +604,11 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
   .fixture.full .what h3, .fixture.full .price { color: var(--mist); }
   .b-leave { background: none; border: 0; padding: 0; font: inherit; font-size: 0.8rem; color: var(--sage); text-decoration: underline; cursor: pointer; }
   .b-leave:disabled { opacity: 0.6; cursor: progress; }
+  .confirm { display: grid; gap: 0.6rem; max-width: 20rem; padding: 0.9rem 1rem; border: 1px solid var(--line); border-radius: 10px; background: var(--forest); text-align: left; justify-self: end; }
+  .confirm p { font-size: 0.85rem; color: var(--mist); line-height: 1.5; }
+  .confirm-actions { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  .confirm .err { color: #9B2C1F; }
+  .booked-sub { font-size: 0.8rem; color: var(--mist); max-width: 18rem; text-align: right; line-height: 1.45; }
   .booked-note { font-size: 0.78rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--sage); }
   .board-empty { padding-block: 2rem; color: var(--mist); }
   .board-empty a { color: var(--sage); }
