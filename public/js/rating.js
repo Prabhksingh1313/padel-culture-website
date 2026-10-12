@@ -1,17 +1,20 @@
 // Padel Culture Rating (PCR): questionnaire, scoring and tiers.
 // Starter version. Edit QUESTIONS and TIERS here to change the questionnaire.
 
+// Scale: 1.00 to 10.00. Older ratings were saved on a 0-7 scale; normRating() converts them.
+export const SCALE_MIN = 1;
+export const SCALE_MAX = 10;
 export const TIERS = [
-  { name: 'First Serve',     min: 0.0, max: 1.4, blurb: 'New to padel and learning the basics. Every great player started here.' },
-  { name: 'Rally Maker',     min: 1.5, max: 2.4, blurb: 'You keep rallies going and serve reliably. The walls are next.' },
-  { name: 'Wall Walker',     min: 2.5, max: 3.4, blurb: 'You use the back glass on purpose and hold your own at the net.' },
-  { name: 'Bandeja Crafter', min: 3.5, max: 4.4, blurb: 'Controlled overheads, smart positioning, points built with your partner.' },
-  { name: 'Víbora',          min: 4.5, max: 5.4, blurb: 'You attack with spin and turn defence into attack. Earned on court.' },
-  { name: 'Por Tres',        min: 5.5, max: 7.0, blurb: 'Tournament level. You can smash the ball out of the court. Earned on court.' },
+  { name: 'First Serve',     min: 1.0, max: 2.49, blurb: 'New to padel and learning the basics. Every great player started here.' },
+  { name: 'Rally Maker',     min: 2.5, max: 3.99, blurb: 'You keep rallies going and serve reliably. The walls are next.' },
+  { name: 'Wall Walker',     min: 4.0, max: 5.49, blurb: 'You use the back glass on purpose and hold your own at the net.' },
+  { name: 'Bandeja Crafter', min: 5.5, max: 6.99, blurb: 'Controlled overheads, smart positioning, points built with your partner.' },
+  { name: 'Víbora',          min: 7.0, max: 8.49, blurb: 'You attack with spin and turn defence into attack. Earned on court.' },
+  { name: 'Por Tres',        min: 8.5, max: 10.0, blurb: 'Tournament level. You can smash the ball out of the court. Earned on court.' },
 ];
 
-// Questionnaire answers can't place anyone above this. Higher tiers are earned in rated games.
-export const SELF_RATING_CAP = 4.4;
+// The questionnaire can't place anyone above this. Higher levels are earned in games.
+export const SELF_RATING_CAP = 6.0;
 
 // kind: 'bg' = background (30% of the score), 'skill' = on-court skill (70%).
 export const QUESTIONS = [
@@ -34,7 +37,22 @@ export const QUESTIONS = [
 ];
 
 export function tierFor(rating) {
-  return TIERS.find((t) => rating <= t.max + 0.05) || TIERS[TIERS.length - 1];
+  let t = TIERS[0];
+  for (const x of TIERS) if (rating >= x.min - 0.0001) t = x;
+  return t;
+}
+
+export const fmt = (r) => Number(r).toFixed(2);
+const r2 = (x) => Math.round(x * 100) / 100;
+const clamp = (x) => Math.min(SCALE_MAX, Math.max(SCALE_MIN, x));
+
+// Ratings saved before the 1-10 scale (no `scale: 10` marker) were on 0-7.
+export function normRating(doc) {
+  if (!doc || typeof doc.rating !== 'number') return null;
+  return doc.scale === 10 ? doc.rating : r2(clamp(1 + (doc.rating * 9) / 7));
+}
+export function normPoint(p) {
+  return p.sc === 10 ? p.r : r2(clamp(1 + (p.r * 9) / 7));
 }
 
 // answers: { [questionId]: 0..4 }
@@ -44,10 +62,55 @@ export function score(answers) {
     return qs.reduce((s, q) => s + (answers[q.id] ?? 0), 0) / (qs.length * 4);
   };
   // A slight curve so middle-of-the-road answers land around Wall Walker, not higher.
-  const raw = Math.pow(0.3 * avg('bg') + 0.7 * avg('skill'), 1.1) * 7;
-  const rating = Math.round(Math.min(raw, SELF_RATING_CAP) * 10) / 10;
-  const capped = raw > SELF_RATING_CAP;
-  return { rating, tier: tierFor(rating).name, capped };
+  const f = Math.pow(0.3 * avg('bg') + 0.7 * avg('skill'), 1.1);
+  const raw = SCALE_MIN + f * (SCALE_MAX - SCALE_MIN);
+  const rating = r2(Math.min(raw, SELF_RATING_CAP));
+  return { rating, tier: tierFor(rating).name, capped: raw > SELF_RATING_CAP };
+}
+
+// ---------- Padel Culture Rating: session engine ----------
+// Every match counts. For each match, a team's expected share of the points depends on
+// the levels of all four players: its average rating against the opponents' average.
+// After the session, each player's rating moves by K x (actual share - expected share),
+// summed over their matches. New players move faster; the change per session is capped.
+export const ENGINE = {
+  spread: 4,                        // rating gap that makes a 10x favourite; 1.00 gap = 64% expected share
+  k: (n) => (n < 5 ? 0.4 : n < 20 ? 0.2 : 0.12),
+  cap: (n) => (n < 5 ? 0.5 : 0.3),
+  verifiedAfter: 5,                 // sessions
+};
+export function expectedShare(teamAvg, oppAvg) {
+  return 1 / (1 + Math.pow(10, (oppAvg - teamAvg) / ENGINE.spread));
+}
+// matches: [{ a: [uid, uid], b: [uid, uid], sa: points, sb: points }]
+// players: { [uid]: { rating, sessions, status } } (ratings on the 1-10 scale)
+export function computeSession(matches, players) {
+  const out = {};
+  const row = (uid) => (out[uid] ||= { uid, before: players[uid].rating, sessions: players[uid].sessions || 0, prevStatus: players[uid].status || 'provisional', matches: 0, won: 0, played: 0, exp: 0, raw: 0 });
+  for (const m of matches) {
+    const total = m.sa + m.sb;
+    if (!total) continue;
+    const A = (players[m.a[0]].rating + players[m.a[1]].rating) / 2;
+    const B = (players[m.b[0]].rating + players[m.b[1]].rating) / 2;
+    const eA = expectedShare(A, B);
+    for (const [team, pts, e] of [[m.a, m.sa, eA], [m.b, m.sb, 1 - eA]]) {
+      for (const uid of team) {
+        const r = row(uid);
+        r.matches++; r.won += pts; r.played += total; r.exp += e * total;
+        r.raw += ENGINE.k(r.sessions) * (pts / total - e);
+      }
+    }
+  }
+  for (const r of Object.values(out)) {
+    const cap = ENGINE.cap(r.sessions);
+    r.delta = r2(Math.max(-cap, Math.min(cap, r.raw)));
+    r.after = r2(clamp(r.before + r.delta));
+    r.share = r.played ? r.won / r.played : 0;
+    r.expShare = r.played ? r.exp / r.played : 0;
+    r.tier = tierFor(r.after).name;
+    r.status = r.prevStatus === 'verified' || r.sessions + 1 >= ENGINE.verifiedAfter ? 'verified' : 'provisional';
+  }
+  return out;
 }
 
 export function displayName(full) {

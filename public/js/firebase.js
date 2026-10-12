@@ -7,7 +7,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
   getFirestore, doc, getDoc, setDoc, collection, getDocs, query, orderBy, where, serverTimestamp,
-  runTransaction, arrayUnion, deleteDoc,
+  runTransaction, arrayUnion, deleteDoc, writeBatch, increment,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
 
 const config = JSON.parse(document.getElementById('fb-config').textContent);
@@ -105,29 +105,64 @@ export async function savePlayer(user, fields, isNew) {
 export async function saveRating(user, name, result, answers) {
   // A rating set by an organiser is never overwritten by the questionnaire.
   const cur = await getPlayer(user.uid);
-  if (cur && cur.ratingStatus && cur.ratingStatus !== 'provisional') return;
+  if (cur && ((cur.ratingStatus && cur.ratingStatus !== 'provisional') || cur.sessions > 0)) return;
   await setDoc(doc(db, 'players', user.uid), {
     phone: user.phoneNumber,
     rating: result.rating,
     tier: result.tier,
     ratingStatus: 'provisional',
+    scale: 10,
     answers,
     ratedAt: serverTimestamp(),
-    ratingHistory: arrayUnion({ r: result.rating, s: 'provisional', at: Date.now(), by: 'questionnaire' }),
+    ratingHistory: arrayUnion({ r: result.rating, s: 'provisional', at: Date.now(), by: 'questionnaire', sc: 10 }),
   }, { merge: true });
   await setDoc(doc(db, 'leaderboard', user.uid), {
     name,
     rating: result.rating,
     tier: result.tier,
     status: 'provisional',
+    scale: 10,
     updatedAt: serverTimestamp(),
   });
 }
 
 // Organisers only: set a player's rating and publish it to the leaderboard.
 export async function adminSetRating(uid, publicName, rating, tier, status) {
-  await setDoc(doc(db, 'players', uid), { rating, tier, ratingStatus: status, ratedAt: serverTimestamp(), ratingHistory: arrayUnion({ r: rating, s: status, at: Date.now(), by: 'organiser' }) }, { merge: true });
-  await setDoc(doc(db, 'leaderboard', uid), { name: publicName, rating, tier, status, updatedAt: serverTimestamp() }, { merge: true });
+  await setDoc(doc(db, 'players', uid), { rating, tier, ratingStatus: status, scale: 10, ratedAt: serverTimestamp(), ratingHistory: arrayUnion({ r: rating, s: status, at: Date.now(), by: 'organiser', sc: 10 }) }, { merge: true });
+  await setDoc(doc(db, 'leaderboard', uid), { name: publicName, rating, tier, status, scale: 10, updatedAt: serverTimestamp() }, { merge: true });
+}
+
+// Organisers only: apply one session's results to every player in it, in one batch.
+// results: [{ uid, name, after, tier, status, delta }]; session: { title, date, gameId, matches }
+export async function adminApplySession(results, session) {
+  const batch = writeBatch(db);
+  const ref = doc(collection(db, 'sessions'));
+  const at = Date.now();
+  for (const r of results) {
+    batch.set(doc(db, 'players', r.uid), {
+      rating: r.after, tier: r.tier, ratingStatus: r.status, scale: 10, sessions: increment(1), ratedAt: serverTimestamp(),
+      ratingHistory: arrayUnion({ r: r.after, s: r.status, at, by: 'session', sc: 10, d: r.delta, t: session.title }),
+    }, { merge: true });
+    batch.set(doc(db, 'leaderboard', r.uid), { name: r.name, rating: r.after, tier: r.tier, status: r.status, scale: 10, updatedAt: serverTimestamp() }, { merge: true });
+  }
+  batch.set(ref, { ...session, results: Object.fromEntries(results.map((r) => [r.uid, { before: r.before, after: r.after, delta: r.delta }])), createdAt: serverTimestamp() });
+  await batch.commit();
+  return ref.id;
+}
+
+export async function listSessions() {
+  const snap = await getDocs(query(collection(db, 'sessions'), orderBy('createdAt', 'desc')));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+// Organisers only: rewrite ratings saved on the old 0-7 scale onto 1-10.
+export async function adminConvertScale(players, leaderboard, conv) {
+  const batch = writeBatch(db);
+  let n = 0;
+  for (const p of players) if (typeof p.rating === 'number' && p.scale !== 10) { batch.set(doc(db, 'players', p.id), { ...conv(p), scale: 10 }, { merge: true }); n++; }
+  for (const l of leaderboard) if (typeof l.rating === 'number' && l.scale !== 10) { batch.set(doc(db, 'leaderboard', l.id), { ...conv(l), scale: 10 }, { merge: true }); n++; }
+  if (n) await batch.commit();
+  return n;
 }
 
 export async function listLeaderboard() {

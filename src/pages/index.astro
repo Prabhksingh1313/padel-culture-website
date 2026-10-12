@@ -278,7 +278,7 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
         <div class="section-head">
           <p class="eyebrow">Padel Culture Rating</p>
           <h2>Who's on top</h2>
-          <p>Every player gets a rating from 0 to 7 and a level, from First Serve to Por Tres. You start with a short questionnaire; results on court then move you up or down.</p>
+          <p>Every player gets a rating from 1.00 to 10.00 and a level, from First Serve to Por Tres. You start with a short questionnaire. After that, every session moves you up or down, based on the points you win and the level of the players you're up against.</p>
           <ul class="lb-tiers" aria-label="Levels">
             <li>First Serve</li><li>Rally Maker</li><li>Wall Walker</li><li>Bandeja Crafter</li><li>Víbora</li><li>Por Tres</li>
           </ul>
@@ -471,10 +471,12 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
       try {
         const fb = await import('/js/firebase.js');
         fbm = fb;
-        fb.listLeaderboard().then((list) => {
+        const RT = await import('/js/rating.js');
+        fb.listLeaderboard().then((raw) => {
+          const list = raw.map((r) => { const rating = RT.normRating(r); return { ...r, rating, tier: RT.tierFor(rating).name }; }).sort((a, b) => b.rating - a.rating);
           const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
           $('lb-top').innerHTML = list.length
-            ? list.slice(0, 5).map((r, i) => `<li><span class="lb-rank">${i + 1}</span><span class="lb-name">${esc(r.name)}</span><span class="lb-tier">${esc(r.tier)}</span><span class="lb-num">${Number(r.rating).toFixed(1)}</span></li>`).join('')
+            ? list.slice(0, 5).map((r, i) => `<li><span class="lb-rank">${i + 1}</span><span class="lb-name">${esc(r.name)}</span><span class="lb-tier">${esc(r.tier)}</span><span class="lb-num">${Number(r.rating).toFixed(2)}</span></li>`).join('')
             : '<li class="muted">No ratings yet. <a href="/join">Be the first.</a></li>';
         }).catch((e) => { console.error(e); $('lb-top').innerHTML = '<li class="muted"><a href="/leaderboard">See the leaderboard</a></li>'; });
         const counts = await fb.listGameCounts();

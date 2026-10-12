@@ -306,7 +306,7 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
     }
     function next() {
       const player = me.player;
-      if (player && typeof player.rating === 'number') showResult(player.rating, player.tier, false, player.ratingStatus);
+      if (player && typeof player.rating === 'number') { const nr = R.normRating(player); showResult(nr, R.tierFor(nr).name, false, player.ratingStatus); }
       else startQuiz();
     }
 
@@ -356,7 +356,7 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
       const first = me.name ? me.name.split(' ')[0] : '';
       $('t-welcome').textContent = first ? `You're in, ${first}` : "You're in";
       $('t-tier').textContent = t.name;
-      $('t-rating').textContent = Number(rating).toFixed(1);
+      $('t-rating').textContent = R.fmt(rating);
       $('t-status').textContent = status === 'verified' ? 'Verified' : 'Provisional';
       $('t-blurb').textContent = t.blurb;
       $('t-card').hidden = false;

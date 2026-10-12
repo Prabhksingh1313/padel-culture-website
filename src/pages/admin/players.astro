@@ -12,14 +12,14 @@ const games = (await getCollection('games')).map((g) => ({
   reserved: g.data.reserved || 0,
 }));
 ---
-<Base title="Players | Padel Culture admin" description="Padel Culture players list">
+<Base title="Dashboard | Padel Culture admin" description="Padel Culture organiser dashboard">
   <meta name="robots" content="noindex" slot="head" />
   <script type="application/json" id="fb-config" set:html={JSON.stringify(fb)} />
   <script type="application/json" id="games-data" set:html={JSON.stringify(games)} />
   <main class="wrap admin">
     <header class="ahead">
       <a href="/" class="brand"><img src="/brand/padel-culture-logo-circle.svg" alt="" width="36" height="36" /> Padel Culture</a>
-      <span class="eyebrow">Players</span>
+      <span class="eyebrow">Dashboard</span>
       <a class="site-admin" href="/admin/">Edit games &amp; site text →</a>
       <button class="linkbtn" id="b-logout" hidden>Log out</button>
     </header>
@@ -54,6 +54,16 @@ const games = (await getCollection('games')).map((g) => ({
 
     <!-- Players table -->
     <section id="s-list" hidden>
+      <div class="tabs" role="tablist" aria-label="Dashboard">
+        <button type="button" role="tab" class="tab" data-tab="players" aria-selected="true">Players</button>
+        <button type="button" role="tab" class="tab" data-tab="bookings" aria-selected="false">Bookings &amp; waitlist</button>
+        <button type="button" role="tab" class="tab" data-tab="scores" aria-selected="false">Scores &amp; ratings</button>
+        <a class="tab tab-link" href="/admin/">Games &amp; site text ↗</a>
+      </div>
+      <p class="note" id="t-scale" hidden></p>
+      <p class="note" id="t-note" hidden></p>
+
+      <div class="tabpanel" id="tab-players">
       <div class="bar">
         <h1><span id="t-count">0</span> players</h1>
         <input id="f-search" type="search" placeholder="Search name, number or PIN code" aria-label="Search players" />
@@ -66,7 +76,6 @@ const games = (await getCollection('games')).map((g) => ({
         <input id="f-sheet" type="file" accept=".csv,text/csv" hidden />
         <span class="muted">Edit one player with the Edit link, or change the Rating column in the sheet in Excel, save it as CSV and upload it.</span>
       </div>
-      <p class="note" id="t-note" hidden></p>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Name</th><th>Mobile</th><th>PIN code</th><th>Rating</th><th>Joined</th><th>Last login</th></tr></thead>
@@ -74,8 +83,36 @@ const games = (await getCollection('games')).map((g) => ({
         </table>
       </div>
 
-      <h2 class="bk-title">Bookings</h2>
-      <div id="t-bookings" class="bookings"></div>
+      </div>
+
+      <div class="tabpanel" id="tab-bookings" hidden>
+        <h1>Bookings &amp; waitlist</h1>
+        <div id="t-bookings" class="bookings"></div>
+      </div>
+
+      <div class="tabpanel" id="tab-scores" hidden>
+        <h1>Scores &amp; ratings</h1>
+        <p class="muted how">Enter every match from a session. For each match, the team's expected share of points comes from all four players' ratings. Beat that share and your rating goes up; fall short and it goes down. New players move faster, the change per session is capped, and ratings turn Verified after 5 sessions. Players without a rating start at 4.00.</p>
+        <div class="sess">
+          <label>Session<select id="sc-game"></select></label>
+          <label>Name<input id="sc-title" placeholder="e.g. Thursday Night Americano" /></label>
+          <label>Date<input id="sc-date" type="date" /></label>
+        </div>
+        <div class="matches-head"><span>Team A</span><span>Score</span><span></span><span>Score</span><span>Team B</span><span></span></div>
+        <div id="sc-matches" class="matches"></div>
+        <div class="sc-actions">
+          <button type="button" class="btn btn-ghost" id="sc-add">+ Add match</button>
+          <button type="button" class="btn btn-solid" id="sc-preview">Preview rating changes</button>
+        </div>
+        <p class="err" id="sc-err" hidden></p>
+        <div id="sc-out" hidden>
+          <h2>Rating changes</h2>
+          <div class="table-wrap"><table><thead><tr><th>Player</th><th class="num">Matches</th><th class="num">Points</th><th class="num">Share</th><th class="num">Expected</th><th class="num">Change</th><th class="num">Rating</th><th>Level</th></tr></thead><tbody id="sc-rows"></tbody></table></div>
+          <div class="sc-actions"><button type="button" class="btn btn-solid" id="sc-apply">Apply and publish to leaderboard</button></div>
+        </div>
+        <h2 class="bk-title">Past sessions</h2>
+        <div id="sc-history" class="bookings"><p class="muted">Loading…</p></div>
+      </div>
     </section>
   </main>
 
@@ -94,13 +131,14 @@ const games = (await getCollection('games')).map((g) => ({
     const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     let players = [];
     let editing = null;
-    const { tierFor, displayName } = await import('/js/rating.js');
+    const R = await import('/js/rating.js');
+    const { tierFor, displayName } = R;
     const note = (msg) => { $('t-note').textContent = msg || ''; $('t-note').hidden = !msg; };
     const last10 = (v) => String(v ?? '').replace(/\D/g, '').slice(-10);
     const statusLabel = (p) => (p.ratingStatus === 'verified' ? 'Verified' : 'Provisional');
 
     async function setRating(p, value, status) {
-      const rating = Math.round(value * 10) / 10;
+      const rating = Math.round(value * 100) / 100;
       const tier = tierFor(rating).name;
       await fb.adminSetRating(p.id, displayName(p.name), rating, tier, status);
       Object.assign(p, { rating, tier, ratingStatus: status });
@@ -109,11 +147,11 @@ const games = (await getCollection('games')).map((g) => ({
     function ratingCell(p) {
       const rated = typeof p.rating === 'number';
       if (editing === p.id) {
-        return `<input id="e-rating" type="number" min="0" max="7" step="0.1" value="${rated ? p.rating : ''}" aria-label="Rating, 0 to 7" />
+        return `<input id="e-rating" type="number" min="1" max="10" step="0.01" value="${rated ? p.rating : ''}" aria-label="Rating, 1 to 10" />
           <select id="e-status" aria-label="Status"><option value="verified"${p.ratingStatus === 'verified' ? ' selected' : ''}>Verified</option><option value="provisional"${p.ratingStatus === 'verified' ? '' : ' selected'}>Provisional</option></select>
           <button class="linkbtn" type="button" data-save="${esc(p.id)}">Save</button> <button class="linkbtn" type="button" data-cancel="1">Cancel</button>`;
       }
-      return `${rated ? `${p.rating.toFixed(1)} · ${esc(p.tier)} · ${statusLabel(p)}` : '<span class="muted">Not rated</span>'} <button class="linkbtn" type="button" data-edit="${esc(p.id)}">Edit</button>`;
+      return `${rated ? `${p.rating.toFixed(2)} · ${esc(p.tier)} · ${statusLabel(p)}` : '<span class="muted">Not rated</span>'} <button class="linkbtn" type="button" data-edit="${esc(p.id)}">Edit</button>`;
     }
 
     // Minimal CSV reader: handles quoted cells and commas inside quotes.
@@ -158,7 +196,22 @@ const games = (await getCollection('games')).map((g) => ({
       }
       try {
         players = await fb.listPlayers();
+        const old = players.filter((x) => typeof x.rating === 'number' && x.scale !== 10).length;
+        players.forEach((x) => { if (typeof x.rating === 'number') { x.rating = R.normRating(x); x.tier = tierFor(x.rating).name; } });
+        if (old) {
+          $('t-scale').innerHTML = `${old} rating${old === 1 ? ' is' : 's are'} saved on the old 0–7 scale. They're shown converted to 1–10 here and on the leaderboard. <button type="button" class="linkbtn" id="b-convert">Save the converted ratings</button>`;
+          $('t-scale').hidden = false;
+          $('b-convert').addEventListener('click', async (e) => {
+            e.target.disabled = true;
+            try {
+              const conv = (d) => { const r = R.normRating(d); return { rating: r, tier: tierFor(r).name }; };
+              const n = await fb.adminConvertScale(await fb.listPlayers(), await fb.listLeaderboard(), conv);
+              $('t-scale').textContent = `Done: ${n} records converted to the 1–10 scale.`;
+            } catch (ex) { console.error(ex); $('t-scale').textContent = `Couldn't convert. (${(ex && ex.code) || 'unknown'})`; }
+          });
+        }
         render();
+        initScores();
         try {
           let wl = [];
           try { wl = await fb.listWaitlist(); } catch (e) { console.error(e); }
@@ -220,6 +273,130 @@ const games = (await getCollection('games')).map((g) => ({
     $('b-switch').addEventListener('click', () => fb.logout().then(() => location.reload()));
     $('f-search').addEventListener('input', render);
 
+    // ---------- Tabs ----------
+    document.querySelectorAll('.tab[data-tab]').forEach((t) => t.addEventListener('click', () => {
+      document.querySelectorAll('.tab[data-tab]').forEach((x) => x.setAttribute('aria-selected', String(x === t)));
+      document.querySelectorAll('.tabpanel').forEach((pn) => (pn.hidden = pn.id !== 'tab-' + t.dataset.tab));
+    }));
+
+    // ---------- Scores & ratings ----------
+    const START = 4;
+    let lastPreview = null;
+    function playerOptions(sel) {
+      const opts = players.slice().sort((a, b) => String(a.name).localeCompare(String(b.name)))
+        .map((x) => `<option value="${esc(x.id)}"${x.id === sel ? ' selected' : ''}>${esc(x.name)} · ${esc(last10(x.phone).slice(-4))}${typeof x.rating === 'number' ? ' · ' + x.rating.toFixed(2) : ''}</option>`).join('');
+      return `<option value="">Player…</option>${opts}`;
+    }
+    function addMatch(m = {}) {
+      const row = document.createElement('div');
+      row.className = 'match';
+      row.innerHTML = `
+        <div class="team"><select class="pa1" aria-label="Team A player 1">${playerOptions(m.a && m.a[0])}</select><select class="pa2" aria-label="Team A player 2">${playerOptions(m.a && m.a[1])}</select></div>
+        <input class="sa" type="number" min="0" inputmode="numeric" aria-label="Team A points" value="${m.sa ?? ''}" />
+        <span class="vs">vs</span>
+        <input class="sb" type="number" min="0" inputmode="numeric" aria-label="Team B points" value="${m.sb ?? ''}" />
+        <div class="team"><select class="pb1" aria-label="Team B player 1">${playerOptions(m.b && m.b[0])}</select><select class="pb2" aria-label="Team B player 2">${playerOptions(m.b && m.b[1])}</select></div>
+        <button type="button" class="linkbtn rm" aria-label="Remove match">✕</button>`;
+      row.querySelector('.rm').addEventListener('click', () => { row.remove(); $('sc-out').hidden = true; });
+      row.addEventListener('change', () => { $('sc-out').hidden = true; });
+      $('sc-matches').appendChild(row);
+    }
+    function readMatches() {
+      const out = [], problems = [];
+      [...$('sc-matches').querySelectorAll('.match')].forEach((row, i) => {
+        const v = (c) => row.querySelector(c).value;
+        const a = [v('.pa1'), v('.pa2')], b = [v('.pb1'), v('.pb2')];
+        const sa = parseInt(v('.sa'), 10), sb = parseInt(v('.sb'), 10);
+        const blank = ![...a, ...b].some(Boolean) && isNaN(sa) && isNaN(sb);
+        if (blank) return;
+        if ([...a, ...b].some((x) => !x)) return problems.push(`Match ${i + 1}: choose all four players.`);
+        if (new Set([...a, ...b]).size < 4) return problems.push(`Match ${i + 1}: the same player appears twice.`);
+        if (isNaN(sa) || isNaN(sb) || sa < 0 || sb < 0 || sa + sb === 0) return problems.push(`Match ${i + 1}: enter both scores.`);
+        out.push({ a, b, sa, sb });
+      });
+      return { matches: out, problems };
+    }
+    function initScores() {
+      const games = JSON.parse($('games-data').textContent).sort((a, b) => Date.parse(b.start) - Date.parse(a.start));
+      $('sc-game').innerHTML = games.map((g) => `<option value="${esc(g.id)}">${esc(g.title)} · ${esc(g.when)}</option>`).join('') + '<option value="">Other session</option>';
+      const syncGame = () => {
+        const g = games.find((x) => x.id === $('sc-game').value);
+        if (g) { $('sc-title').value = g.title; $('sc-date').value = g.start.slice(0, 10); }
+      };
+      $('sc-game').addEventListener('change', syncGame);
+      syncGame();
+      if (!$('sc-date').value) $('sc-date').value = new Date().toISOString().slice(0, 10);
+      $('sc-matches').innerHTML = '';
+      for (let i = 0; i < 4; i++) addMatch();
+      loadSessions();
+    }
+    $('sc-add').addEventListener('click', () => addMatch());
+    $('sc-preview').addEventListener('click', () => {
+      const { matches, problems } = readMatches();
+      $('sc-err').hidden = true;
+      if (problems.length || !matches.length) {
+        $('sc-err').textContent = problems.length ? problems.join(' ') : 'Add at least one match with players and scores.';
+        $('sc-err').hidden = false; $('sc-out').hidden = true; return;
+      }
+      const byId = Object.fromEntries(players.map((x) => [x.id, x]));
+      const input = {};
+      matches.forEach((m) => [...m.a, ...m.b].forEach((uid) => {
+        const x = byId[uid];
+        input[uid] = { rating: typeof x.rating === 'number' ? x.rating : START, sessions: x.sessions || 0, status: x.ratingStatus || 'provisional', unrated: typeof x.rating !== 'number' };
+      }));
+      const res = R.computeSession(matches, input);
+      const list = Object.values(res).sort((a, b) => b.delta - a.delta);
+      const pct = (x) => Math.round(x * 100) + '%';
+      $('sc-rows').innerHTML = list.map((r) => {
+        const x = byId[r.uid];
+        return `<tr><td>${esc(x.name)}${input[r.uid].unrated ? ' <span class="muted">(new, from 4.00)</span>' : ''}</td><td class="num">${r.matches}</td><td class="num">${r.won}/${r.played}</td><td class="num">${pct(r.share)}</td><td class="num">${pct(r.expShare)}</td><td class="num ${r.delta > 0 ? 'up' : r.delta < 0 ? 'down' : ''}">${r.delta > 0 ? '+' : ''}${r.delta.toFixed(2)}</td><td class="num">${r.before.toFixed(2)} → <strong>${r.after.toFixed(2)}</strong></td><td>${esc(r.tier)}${r.status === 'verified' ? ' · Verified' : ''}</td></tr>`;
+      }).join('');
+      lastPreview = { matches, list };
+      $('sc-out').hidden = false;
+      $('sc-apply').disabled = false;
+      $('sc-apply').textContent = 'Apply and publish to leaderboard';
+    });
+    $('sc-apply').addEventListener('click', async () => {
+      if (!lastPreview) return;
+      const btn = $('sc-apply');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      const byId = Object.fromEntries(players.map((x) => [x.id, x]));
+      const results = lastPreview.list.map((r) => ({ uid: r.uid, name: displayName(byId[r.uid].name), before: r.before, after: r.after, delta: r.delta, tier: r.tier, status: r.status }));
+      const session = { title: $('sc-title').value.trim() || 'Session', date: $('sc-date').value, gameId: $('sc-game').value || null, matches: lastPreview.matches };
+      try {
+        await fb.adminApplySession(results, session);
+        results.forEach((r) => Object.assign(byId[r.uid], { rating: r.after, tier: r.tier, ratingStatus: r.status, sessions: (byId[r.uid].sessions || 0) + 1 }));
+        render();
+        lastPreview = null;
+        btn.textContent = 'Saved ✓';
+        note(`Session saved: ${results.length} ratings updated and published to the leaderboard.`);
+        $('sc-matches').innerHTML = ''; for (let i = 0; i < 4; i++) addMatch();
+        loadSessions();
+      } catch (ex) {
+        console.error(ex);
+        btn.disabled = false; btn.textContent = 'Apply and publish to leaderboard';
+        $('sc-err').textContent = (ex && ex.code && ex.code.includes('permission'))
+          ? 'The Firestore rules need updating before sessions can be saved. (permission-denied)'
+          : `Couldn't save the session. (${(ex && ex.code) || 'unknown'})`;
+        $('sc-err').hidden = false;
+      }
+    });
+    async function loadSessions() {
+      try {
+        const list = await fb.listSessions();
+        const byId = Object.fromEntries(players.map((x) => [x.id, x]));
+        $('sc-history').innerHTML = list.length ? list.map((s) => {
+          const res = Object.entries(s.results || {}).sort((a, b) => b[1].delta - a[1].delta);
+          return `<div class="bk-game"><h3>${esc(s.title)} <span class="muted">· ${esc(s.date || '')}</span></h3>
+            <p class="muted">${(s.matches || []).length} matches · ${res.length} players</p>
+            <ol>${res.map(([uid, r]) => `<li>${esc((byId[uid] || {}).name || 'Player')} · ${Number(r.before).toFixed(2)} → ${Number(r.after).toFixed(2)} (${r.delta > 0 ? '+' : ''}${Number(r.delta).toFixed(2)})</li>`).join('')}</ol></div>`;
+        }).join('') : '<p class="muted">No sessions entered yet.</p>';
+      } catch (e) {
+        console.error(e);
+        $('sc-history').innerHTML = '<p class="muted">Past sessions will show here once the updated Firestore rules are published.</p>';
+      }
+    }
+
     // Edit one player's rating in the table.
     $('t-rows').addEventListener('click', async (e) => {
       const t = e.target;
@@ -229,13 +406,13 @@ const games = (await getCollection('games')).map((g) => ({
       if (t.dataset.save) {
         const p = players.find((x) => x.id === t.dataset.save);
         const v = parseFloat($('e-rating').value);
-        if (!p || !(v >= 0 && v <= 7)) return note('Enter a rating between 0 and 7.');
+        if (!p || !(v >= 1 && v <= 10)) return note('Enter a rating between 1.00 and 10.00.');
         const status = $('e-status').value;
         t.disabled = true;
         try {
           await setRating(p, v, status);
           editing = null;
-          note(`Saved: ${p.name} is now ${p.rating.toFixed(1)} · ${p.tier} · ${statusLabel(p)}. The leaderboard is updated.`);
+          note(`Saved: ${p.name} is now ${p.rating.toFixed(2)} · ${p.tier} · ${statusLabel(p)}. The leaderboard is updated.`);
         } catch (ex) {
           console.error(ex);
           note(`Couldn't save the rating. (${(ex && ex.code) || 'unknown'})`);
@@ -248,7 +425,7 @@ const games = (await getCollection('games')).map((g) => ({
     const csvCell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
     $('b-sheet').addEventListener('click', () => {
       const lines = [['Name', 'Mobile', 'Rating', 'Status'].map(csvCell).join(',')]
-        .concat(players.map((p) => [p.name, last10(p.phone), typeof p.rating === 'number' ? p.rating.toFixed(1) : '', typeof p.rating === 'number' ? statusLabel(p) : ''].map(csvCell).join(',')));
+        .concat(players.map((p) => [p.name, last10(p.phone), typeof p.rating === 'number' ? p.rating.toFixed(2) : '', typeof p.rating === 'number' ? statusLabel(p) : ''].map(csvCell).join(',')));
       const url = URL.createObjectURL(new Blob(['\ufeff' + lines.join('\n')], { type: 'text/csv' }));
       const a = Object.assign(document.createElement('a'), { href: url, download: `padel-culture-ratings-${new Date().toISOString().slice(0, 10)}.csv` });
       a.click(); URL.revokeObjectURL(url);
@@ -273,10 +450,10 @@ const games = (await getCollection('games')).map((g) => ({
         const p = mobile.length === 10 && players.find((x) => last10(x.phone) === mobile);
         if (!p) { unknown.push(r[iMobile] || '(blank)'); continue; }
         const v = parseFloat(raw);
-        if (!(v >= 0 && v <= 7)) { bad.push(p.name); continue; }
+        if (!(v >= 1 && v <= 10)) { bad.push(p.name); continue; }
         const s = iStatus >= 0 ? String(r[iStatus] ?? '').trim().toLowerCase() : '';
         const status = s.startsWith('verif') ? 'verified' : s.startsWith('prov') ? 'provisional' : (p.ratingStatus || 'provisional');
-        if (typeof p.rating === 'number' && Math.abs(p.rating - v) < 0.05 && (p.ratingStatus || 'provisional') === status) { same++; continue; }
+        if (typeof p.rating === 'number' && Math.abs(p.rating - v) < 0.005 && (p.ratingStatus || 'provisional') === status) { same++; continue; }
         try { await setRating(p, v, status); updated++; } catch (ex) { console.error(ex); failed++; }
       }
       render();
@@ -284,7 +461,7 @@ const games = (await getCollection('games')).map((g) => ({
         `${updated} rating${updated === 1 ? '' : 's'} updated and published to the leaderboard.`,
         same ? `${same} unchanged.` : '',
         unknown.length ? `${unknown.length} mobile number${unknown.length === 1 ? '' : 's'} not found: ${unknown.slice(0, 5).join(', ')}${unknown.length > 5 ? '…' : ''}.` : '',
-        bad.length ? `Rating not between 0 and 7 for: ${bad.slice(0, 5).join(', ')}${bad.length > 5 ? '…' : ''}.` : '',
+        bad.length ? `Rating not between 1 and 10 for: ${bad.slice(0, 5).join(', ')}${bad.length > 5 ? '…' : ''}.` : '',
         failed ? `${failed} couldn't be saved.` : '',
       ].filter(Boolean).join(' '));
     });
@@ -329,6 +506,36 @@ const games = (await getCollection('games')).map((g) => ({
   .table-wrap :global(.linkbtn) { background: none; border: 0; padding: 0; margin-left: 0.5rem; font: inherit; color: var(--sage); text-decoration: underline; cursor: pointer; }
   .table-wrap :global(td input), .table-wrap :global(td select) { width: auto; max-width: 6.5rem; padding: 0.3rem 0.5rem; font: inherit; color: var(--chalk); background: #fff; border: 1px solid var(--line); border-radius: 4px; }
   .bk-title { font-size: 2rem; margin-top: 2rem; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--line); }
+  .tab { font: 600 0.85rem var(--body); padding: 0.75rem 1rem; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--mist); cursor: pointer; text-decoration: none; margin-bottom: -1px; }
+  .tab[aria-selected="true"] { color: var(--chalk); border-bottom-color: var(--olive); }
+  .tab-link { margin-left: auto; color: var(--sage); }
+  .tabpanel { display: grid; gap: 1rem; }
+  .tabpanel[hidden] { display: none; }
+  .how { max-width: 50rem; font-size: 0.9rem; line-height: 1.6; }
+  .sess { display: flex; flex-wrap: wrap; gap: 1rem; }
+  .sess label { display: grid; gap: 0.35rem; flex: 1 1 14rem; }
+  .sess select { font: 400 1rem var(--body); color: var(--chalk); background: var(--pine); border: 1px solid var(--line); border-radius: 6px; padding: 0.7rem 0.9rem; }
+  .matches-head, .matches :global(.match) { display: grid; grid-template-columns: minmax(0, 2fr) 4.5rem 1.6rem 4.5rem minmax(0, 2fr) 1.5rem; gap: 0.6rem; align-items: center; }
+  .matches-head { font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--olive); font-weight: 600; }
+  .matches { display: grid; gap: 0.6rem; }
+  .matches :global(.match) { padding: 0.6rem; border: 1px solid var(--line); border-radius: 8px; background: var(--pine); }
+  .matches :global(.team) { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem; min-width: 0; }
+  .matches :global(select), .matches :global(input) { width: 100%; min-width: 0; font: 400 0.85rem var(--body); color: var(--chalk); background: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 0.5rem; }
+  .matches :global(.vs) { text-align: center; font-size: 0.8rem; color: var(--mist); }
+  .matches :global(.rm) { background: none; border: 0; color: var(--mist); cursor: pointer; font-size: 1rem; }
+  #sc-out { display: grid; gap: 1rem; }
+  #sc-out[hidden] { display: none; }
+  .sc-actions { display: flex; flex-wrap: wrap; gap: 0.8rem; }
+  .table-wrap :global(td.num), th.num { text-align: right; }
+  .table-wrap :global(.up) { color: #2F6B2A; font-weight: 600; }
+  .table-wrap :global(.down) { color: #9B2C1F; font-weight: 600; }
+  @media (max-width: 760px) {
+    .matches-head { display: none; }
+    .matches :global(.match) { grid-template-columns: 1fr 4rem; }
+    .matches :global(.team) { grid-column: 1 / -1; }
+    .matches :global(.vs) { display: none; }
+  }
   .bookings { display: grid; gap: 1rem; }
   .bookings :global(.bk-game) { padding: 1.2rem; border: 1px solid var(--line); border-radius: 8px; background: var(--pine); display: grid; gap: 0.4rem; }
   .bookings :global(h3) { font-size: 1.4rem; }
