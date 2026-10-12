@@ -163,28 +163,78 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
       </div>
     </section>
 
-    <!-- HOW IT WORKS -->
-    <section id="how" class="how">
-      <div class="wrap">
+    <!-- PADEL GUIDE -->
+    <section id="guide" class="guide-sec">
+      <div class="wrap guide-grid">
         <div class="section-head">
-          <p class="eyebrow">The format</p>
-          <h2>How an Americano works</h2>
+          <p class="eyebrow">Padel guide</p>
+          <h2>Everything you need before your first game</h2>
+          <p>Where padel came from, how it's played, and how each of our formats works.</p>
+          <div class="g-tabs" role="tablist" aria-label="Padel guide topics">
+            <button type="button" role="tab" class="g-tab" id="gt-history" aria-controls="gp-history" aria-selected="true">History</button>
+            <button type="button" role="tab" class="g-tab" id="gt-basics" aria-controls="gp-basics" aria-selected="false" tabindex="-1">The basics</button>
+            <button type="button" role="tab" class="g-tab" id="gt-americano" aria-controls="gp-americano" aria-selected="false" tabindex="-1">Americano</button>
+            <button type="button" role="tab" class="g-tab" id="gt-mexicano" aria-controls="gp-mexicano" aria-selected="false" tabindex="-1">Mexicano</button>
+            <button type="button" role="tab" class="g-tab" id="gt-king" aria-controls="gp-king" aria-selected="false" tabindex="-1">King of the Court</button>
+            <button type="button" role="tab" class="g-tab" id="gt-tournaments" aria-controls="gp-tournaments" aria-selected="false" tabindex="-1">Tournaments</button>
+          </div>
         </div>
-        <ol class="steps">
-          <li>
-            <h3>Book a spot on your own</h3>
-            <p>Pick a game at your level. You don't need a partner or a group; most people come solo.</p>
-          </li>
-          <li>
-            <h3>Rotate partners each round</h3>
-            <p>Rounds are short, usually to 21 or 24 points. After each one you switch partners and opponents.</p>
-          </li>
-          <li>
-            <h3>Points go on your own tally</h3>
-            <p>Every point you win counts for you. The leaderboard is up at the end, then it's chai and photos.</p>
-          </li>
-        </ol>
-        <p class="how-more"><a href="/learn">How Mexicano, King of the Court and tournaments work</a></p>
+        <div class="g-panels">
+          <div class="g-panel" role="tabpanel" id="gp-history" aria-labelledby="gt-history">
+            <h3>A backyard idea that went global</h3>
+            <ol>
+              <li>Invented in 1969 in Acapulco, Mexico, by Enrique Corcuera, who walled in a small court at home.</li>
+              <li>Taken to Spain in 1974 and Argentina in 1975, which still produce most of the world's best players.</li>
+              <li>Now one of the fastest-growing sports in the world, with courts opening across India.</li>
+            </ol>
+            <a class="g-more" href="/learn#history">Read more in the full guide →</a>
+          </div>
+          <div class="g-panel" role="tabpanel" id="gp-basics" aria-labelledby="gt-basics" hidden>
+            <h3>Easy to start, hard to put down</h3>
+            <ol>
+              <li>Always doubles, on a 20 m × 10 m court closed in by glass.</li>
+              <li>Serve underarm. The ball must bounce first, then the walls are in play.</li>
+              <li>Tennis scoring, but rallies last longer, so beginners play real points in their first session.</li>
+            </ol>
+            <a class="g-more" href="/learn#basics">Read more in the full guide →</a>
+          </div>
+          <div class="g-panel" role="tabpanel" id="gp-americano" aria-labelledby="gt-americano" hidden>
+            <h3>Come solo, meet everyone</h3>
+            <ol>
+              <li>Book on your own. Partners are paired for you.</li>
+              <li>Short rounds to a fixed number of points, usually 21 or 24. You switch partners every round.</li>
+              <li>Every point your pair wins goes on your own tally. Most points at the end wins.</li>
+            </ol>
+            <a class="g-more" href="/learn#americano">Read more in the full guide →</a>
+          </div>
+          <div class="g-panel" role="tabpanel" id="gp-mexicano" aria-labelledby="gt-mexicano" hidden>
+            <h3>Games that get closer every round</h3>
+            <ol>
+              <li>Round one is random, with the same scoring as an Americano.</li>
+              <li>After that, the standings pick the matches: 1st and 3rd play 2nd and 4th on each court.</li>
+              <li>You keep meeting players at your level, so the last rounds are the tightest.</li>
+            </ol>
+            <a class="g-more" href="/learn#mexicano">Read more in the full guide →</a>
+          </div>
+          <div class="g-panel" role="tabpanel" id="gp-king" aria-labelledby="gt-king" hidden>
+            <h3>Win and climb, lose and drop</h3>
+            <ol>
+              <li>Courts are ranked, with the King's court at the top.</li>
+              <li>Short timed rounds. Winners move up a court, losers move down.</li>
+              <li>Whoever finishes on the King's court, or wins the most rounds there, takes the night.</li>
+            </ol>
+            <a class="g-more" href="/learn#king">Read more in the full guide →</a>
+          </div>
+          <div class="g-panel" role="tabpanel" id="gp-tournaments" aria-labelledby="gt-tournaments" hidden>
+            <h3>Fixed pairs, proper competition</h3>
+            <ol>
+              <li>Enter with a partner and keep them throughout.</li>
+              <li>A group stage first, so nobody goes home after one match.</li>
+              <li>Then knockouts to a final, with games, sets and a golden point at deuce.</li>
+            </ol>
+            <a class="g-more" href="/learn#tournaments">Read more in the full guide →</a>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -206,15 +256,27 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
           <h2>Courts were here. The community wasn't.</h2>
           <p>{site.about}</p>
         </div>
-        <div class="guide">
-          <p class="eyebrow">Padel guide</p>
-          <h3>New to the game or the formats?</h3>
-          <div class="guide-cards">
-            <a href="/learn#history"><strong>History of padel</strong><span>From a backyard in Acapulco in 1969 to courts across India.</span></a>
-            <a href="/learn#americano"><strong>Americano</strong><span>New partner every round. Every point counts for you.</span></a>
-            <a href="/learn#mexicano"><strong>Mexicano</strong><span>The leaderboard picks your next match, so games get closer.</span></a>
-            <a href="/learn#king"><strong>King of the Court</strong><span>Win and move up a court. Lose and move down.</span></a>
+      </div>
+    </section>
+
+    <!-- LEADERBOARD -->
+    <section id="leaderboard" class="lb-sec">
+      <div class="wrap lb-grid">
+        <div class="section-head">
+          <p class="eyebrow">Padel Culture Rating</p>
+          <h2>Who's on top</h2>
+          <p>Every player gets a rating from 0 to 7 and a level, from First Serve to Por Tres. You start with a short questionnaire; results on court then move you up or down.</p>
+          <ul class="lb-tiers" aria-label="Levels">
+            <li>First Serve</li><li>Rally Maker</li><li>Wall Walker</li><li>Bandeja Crafter</li><li>Víbora</li><li>Por Tres</li>
+          </ul>
+          <div class="hero-cta">
+            <a class="btn btn-solid" href="/leaderboard">Full leaderboard</a>
+            <a class="btn btn-ghost" href="/join">Get your rating</a>
           </div>
+        </div>
+        <div class="lb-top">
+          <p class="lb-top-title">Top players</p>
+          <ol id="lb-top"><li class="muted">Loading…</li></ol>
         </div>
       </div>
     </section>
@@ -255,6 +317,31 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
   <Footer />
 
   <script type="application/json" id="fb-config" set:html={JSON.stringify(fbConfig)} />
+
+  <script is:inline>
+    (() => {
+      const tabs = [...document.querySelectorAll('.g-tab')];
+      const pick = (t, focus) => {
+        tabs.forEach((x) => {
+          const on = x === t;
+          x.setAttribute('aria-selected', String(on));
+          x.tabIndex = on ? 0 : -1;
+          document.getElementById(x.getAttribute('aria-controls')).hidden = !on;
+        });
+        if (focus) t.focus();
+      };
+      tabs.forEach((t, i) => {
+        t.addEventListener('click', () => pick(t));
+        t.addEventListener('keydown', (e) => {
+          const d = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+          if (d) { e.preventDefault(); pick(tabs[(i + d + tabs.length) % tabs.length], true); }
+        });
+      });
+      const want = location.hash.replace('#', '');
+      const t = tabs.find((x) => x.id === 'gt-' + want);
+      if (t) pick(t);
+    })();
+  </script>
   <script type="module" is:inline>
     import * as cart from '/js/cart.js';
     const $ = (id) => document.getElementById(id);
@@ -329,6 +416,12 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
     if (cfg.apiKey) {
       try {
         const fb = await import('/js/firebase.js');
+        fb.listLeaderboard().then((list) => {
+          const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+          $('lb-top').innerHTML = list.length
+            ? list.slice(0, 5).map((r, i) => `<li><span class="lb-rank">${i + 1}</span><span class="lb-name">${esc(r.name)}</span><span class="lb-tier">${esc(r.tier)}</span><span class="lb-num">${Number(r.rating).toFixed(1)}</span></li>`).join('')
+            : '<li class="muted">No ratings yet. <a href="/join">Be the first.</a></li>';
+        }).catch((e) => { console.error(e); $('lb-top').innerHTML = '<li class="muted"><a href="/leaderboard">See the leaderboard</a></li>'; });
         const counts = await fb.listGameCounts();
         Object.entries(counts).forEach(([id, g]) => { booked[id] = g.booked || 0; });
         paint();
@@ -469,12 +562,36 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
   }
 
   /* How it works: a real sequence, so it's numbered */
-  .steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2rem; counter-reset: step; }
-  .steps li { display: grid; gap: 0.7rem; align-content: start; padding-top: 1.2rem; border-top: 1px solid var(--olive); counter-increment: step; }
-  .steps li::before { content: 'Round ' counter(step); font-size: 0.7rem; letter-spacing: 0.24em; text-transform: uppercase; color: var(--olive); font-weight: 600; }
-  .steps h3 { font-size: 1.8rem; }
-  .steps p { color: var(--mist); }
-  @media (max-width: 760px) { .steps { grid-template-columns: 1fr; } }
+  section[id] { scroll-margin-top: 4.5rem; }
+  .guide-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 2rem 4rem; align-items: start; }
+  .g-tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.8rem; }
+  .g-tab { font: 500 0.85rem var(--body); padding: 0.55rem 1rem; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--chalk); cursor: pointer; }
+  .g-tab:hover { background: var(--moss); }
+  .g-tab[aria-selected="true"] { background: var(--chalk); border-color: var(--chalk); color: var(--forest); }
+  .g-tab:focus-visible { outline: 2px solid var(--sage); outline-offset: 2px; }
+  .g-panel { display: grid; gap: 1.2rem; padding: clamp(1.4rem, 4vw, 2.4rem); border: 1px solid var(--line); border-radius: 12px; background: var(--pine); }
+  .g-panel[hidden] { display: none; }
+  .g-panel h3 { font-size: clamp(1.8rem, 4vw, 2.6rem); }
+  .g-panel ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 1rem; counter-reset: g; }
+  .g-panel li { display: grid; grid-template-columns: 2.2rem 1fr; gap: 0.8rem; align-items: baseline; color: var(--mist); line-height: 1.6; counter-increment: g; }
+  .g-panel li::before { content: counter(g, decimal-leading-zero); font-family: var(--display); font-size: 1.5rem; color: var(--olive); }
+  .g-more { color: var(--sage); font-weight: 600; font-size: 0.9rem; }
+  .about { background: var(--pine); border-block: 1px solid var(--line); }
+  .lb-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2rem 4rem; align-items: start; }
+  .lb-tiers { list-style: none; margin: 0.4rem 0 1rem; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .lb-tiers li { font-size: 0.75rem; padding: 0.35rem 0.75rem; border-radius: 999px; background: var(--moss); color: var(--chalk); }
+  .lb-top { border: 1px solid var(--line); border-radius: 12px; background: var(--pine); padding: 1.4rem; }
+  .lb-top-title { font-size: 0.72rem; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: var(--olive); margin-bottom: 0.6rem; }
+  .lb-top ol { list-style: none; margin: 0; padding: 0; }
+  .lb-top :global(li) { display: grid; grid-template-columns: 2rem minmax(0, 1fr) auto 3rem; gap: 0.8rem; align-items: center; padding: 0.85rem 0; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+  .lb-top :global(li:last-child) { border-bottom: 0; }
+  .lb-top :global(li.muted) { display: block; color: var(--mist); }
+  .lb-top :global(.lb-rank) { font-family: var(--display); font-size: 1.4rem; color: var(--olive); }
+  .lb-top :global(.lb-name) { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .lb-top :global(.lb-tier) { font-size: 0.75rem; color: var(--mist); }
+  .lb-top :global(.lb-num) { text-align: right; font-weight: 700; }
+  .lb-top :global(a) { color: var(--sage); }
+  @media (max-width: 860px) { .guide-grid, .lb-grid { grid-template-columns: 1fr; } }
 
   /* Gallery */
   .gallery { padding-block: 0 clamp(3.5rem, 8vw, 6rem); }
@@ -484,15 +601,7 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
   .gallery figcaption { font-size: 0.8rem; color: var(--mist); padding-top: 0.4rem; }
 
   /* About */
-  .about { border-top: 1px solid var(--line); }
   .about-grid { display: grid; gap: 3rem; }
-  .guide { display: grid; gap: 1rem; }
-  .guide h3 { font-size: clamp(1.6rem, 3.5vw, 2.2rem); }
-  .guide-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 1rem; }
-  .guide-cards a { display: grid; gap: 0.4rem; padding: 1.2rem; border: 1px solid var(--line); border-radius: 8px; background: var(--pine); text-decoration: none; color: var(--chalk); }
-  .guide-cards a:hover { background: var(--moss); }
-  .guide-cards strong { font-family: var(--display); font-size: 1.4rem; font-weight: 600; }
-  .guide-cards span { color: var(--mist); font-size: 0.9rem; line-height: 1.5; }
   .about-copy { display: grid; gap: 1.2rem; align-content: start; max-width: 38rem; }
   .about-copy h2 { font-size: clamp(2.2rem, 5vw, 3.4rem); }
   .about-copy p:last-child { color: var(--mist); }
