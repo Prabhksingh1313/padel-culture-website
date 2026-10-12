@@ -1,4 +1,47 @@
 ---
+import { getCollection } from 'astro:content';
+import site from '../data/site.json';
+import faq from '../data/faq.json';
+
+const tz = 'Asia/Kolkata';
+const soon = (await getCollection('games'))
+  .filter((g) => g.data.status !== 'cancelled' && g.data.date.valueOf() + 3 * 3600e3 > Date.now())
+  .sort((a, b) => a.data.date.valueOf() - b.data.date.valueOf())
+  .slice(0, 4)
+  .map((g) => ({
+    label: `${new Intl.DateTimeFormat('en-IN', { timeZone: tz, weekday: 'short', day: 'numeric', month: 'short' }).format(g.data.date)} · ${g.data.format}`,
+    sub: g.data.venue,
+  }));
+
+type Item = { label: string; href: string; sub?: string; ext?: boolean };
+const menus: { label: string; href: string; items: Item[] }[] = [
+  { label: 'Games', href: '/#games', items: [
+    ...soon.map((g) => ({ label: g.label, sub: g.sub, href: '/#games' })),
+    { label: 'All upcoming games', href: '/#games' },
+    { label: 'Your cart', href: '/cart' },
+  ] },
+  { label: 'Padel guide', href: '/#guide', items: [
+    { label: 'History of padel', href: '/#guide-history' },
+    { label: 'The basics', href: '/#guide-basics' },
+    { label: 'Americano', href: '/#guide-americano' },
+    { label: 'Mexicano', href: '/#guide-mexicano' },
+    { label: 'King of the Court', href: '/#guide-king' },
+    { label: 'Tournaments', href: '/#guide-tournaments' },
+    { label: 'Full guide and glossary', href: '/learn' },
+  ] },
+  { label: 'About', href: '/#about', items: [
+    { label: 'Our story', href: '/#about' },
+    ...(site.whatsappGroupLink ? [{ label: 'WhatsApp community', href: site.whatsappGroupLink, ext: true }] : []),
+    { label: `Instagram ${site.instagramHandle}`, href: site.instagram, ext: true },
+  ] },
+  { label: 'Leaderboard', href: '/#leaderboard', items: [
+    { label: 'Top players', href: '/#leaderboard' },
+    { label: 'Full rankings', href: '/leaderboard' },
+    { label: 'Your rating and graph', href: '/leaderboard' },
+    { label: 'Get your rating', href: '/join' },
+  ] },
+  { label: 'FAQ', href: '/#faq', items: faq.items.map((f, i) => ({ label: f.q, href: `/#faq-${i}` })) },
+];
 ---
   <header class="topbar">
     <div class="wrap topbar-inner">
@@ -6,16 +49,48 @@
         <img src="/brand/padel-culture-logo-circle.svg" alt="" width="40" height="40" />
         <span>Padel Culture</span>
       </a>
-      <nav aria-label="Main">
-        <a href="/#games">Games</a>
-        <a href="/#guide">Padel guide</a>
-        <a href="/#about">About</a>
-        <a href="/#leaderboard">Leaderboard</a>
-        <a href="/#faq">FAQ</a>
+
+      <nav aria-label="Main" class="nav-desk">
+        {menus.map((m) => (
+          <details class="dd">
+            <summary>{m.label}<span class="chev" aria-hidden="true"></span></summary>
+            <div class="dd-menu">
+              {m.items.map((it) => (
+                <a href={it.href} target={it.ext ? '_blank' : undefined} rel={it.ext ? 'noopener' : undefined}>
+                  <span>{it.label}</span>{it.sub && <small>{it.sub}</small>}
+                </a>
+              ))}
+            </div>
+          </details>
+        ))}
       </nav>
+
       <a class="cart-link" href="/cart" id="h-cart" hidden>Cart <span id="h-cart-n">0</span></a>
-      <a class="login-link" href="/login">Log in</a>
-      <a class="btn btn-solid topbar-cta" href="/join">Join as Player</a>
+
+      <details class="dd dd-player">
+        <summary class="btn btn-solid topbar-cta">Player<span class="chev" aria-hidden="true"></span></summary>
+        <div class="dd-menu dd-right">
+          <a href="/join"><span>Join as a player</span><small>Sign up and get your rating</small></a>
+          <a href="/login"><span>Log in</span><small>Mobile number and password</small></a>
+          <a href="/leaderboard"><span>My rating</span><small>Rank and rating graph</small></a>
+        </div>
+      </details>
+
+      <details class="dd mnav">
+        <summary class="burger" aria-label="Menu"><span></span><span></span><span></span></summary>
+        <div class="mnav-panel">
+          {menus.map((m) => (
+            <details class="mgroup">
+              <summary>{m.label}<span class="chev" aria-hidden="true"></span></summary>
+              <div class="mgroup-items">
+                {m.items.map((it) => (
+                  <a href={it.href} target={it.ext ? '_blank' : undefined} rel={it.ext ? 'noopener' : undefined}>{it.label}</a>
+                ))}
+              </div>
+            </details>
+          ))}
+        </div>
+      </details>
     </div>
   </header>
   <script type="module" is:inline>
@@ -28,27 +103,68 @@
     window.addEventListener('cart-change', paint);
     window.addEventListener('storage', paint);
     paint();
+
+    // Menus: one open at a time; close on outside click, Escape, or choosing a link.
+    const tops = [...document.querySelectorAll('.topbar .dd')];
+    tops.forEach((d) => d.addEventListener('toggle', () => {
+      if (d.open) tops.forEach((o) => { if (o !== d) o.open = false; });
+    }));
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.topbar .dd')) tops.forEach((d) => (d.open = false));
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') tops.forEach((d) => { if (d.open) { d.open = false; d.querySelector('summary').focus(); } });
+    });
+    document.querySelectorAll('.topbar .dd a').forEach((a) => a.addEventListener('click', () => tops.forEach((d) => (d.open = false))));
   </script>
 
 <style>
   /* Top bar */
   .topbar {
-    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10;
-    background: color-mix(in srgb, var(--forest) 88%, transparent);
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+    background: color-mix(in srgb, var(--forest) 92%, transparent);
     backdrop-filter: blur(10px); border-bottom: 1px solid var(--line);
   }
-  .topbar-inner { display: flex; align-items: center; gap: 1.5rem; padding-block: 0.7rem; }
+  .topbar-inner { display: flex; align-items: center; gap: 1.2rem; padding-block: 0.7rem; }
   .brand { display: flex; align-items: center; gap: 0.7rem; text-decoration: none; font-family: var(--display); font-size: 1.35rem; color: var(--chalk); }
-  nav { display: flex; gap: 1.6rem; margin-left: auto; }
-  nav a { text-decoration: none; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--mist); }
-  nav a:hover { color: var(--chalk); }
+  .nav-desk { display: flex; gap: 0.4rem; margin-left: auto; }
+
+  .dd { position: relative; }
+  .dd > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: 0.45rem; }
+  .dd > summary::-webkit-details-marker { display: none; }
+  .nav-desk .dd > summary { padding: 0.55rem 0.7rem; border-radius: 6px; font-size: 0.75rem; font-weight: 500; letter-spacing: 0.16em; text-transform: uppercase; color: var(--mist); }
+  .nav-desk .dd > summary:hover, .nav-desk .dd[open] > summary { color: var(--chalk); background: var(--moss); }
+  .chev { width: 0.4rem; height: 0.4rem; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg) translateY(-2px); transition: transform 0.15s; }
+  .dd[open] > summary .chev, .mgroup[open] > summary .chev { transform: rotate(225deg) translateY(-1px); }
+  .dd-menu { position: absolute; top: calc(100% + 0.5rem); left: 0; min-width: 15rem; max-width: 22rem; display: grid; padding: 0.4rem; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 32px rgba(11, 31, 20, 0.12); z-index: 30; }
+  .dd-right { left: auto; right: 0; }
+  .dd-menu a { display: grid; gap: 0.1rem; padding: 0.6rem 0.8rem; border-radius: 6px; text-decoration: none; color: var(--chalk); font-size: 0.9rem; line-height: 1.35; }
+  .dd-menu a:hover, .dd-menu a:focus-visible { background: var(--pine); }
+  .dd-menu small { font-size: 0.75rem; color: var(--mist); }
+
   .topbar-cta { padding: 0.6rem 1.1rem; }
-  .login-link { text-decoration: none; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--chalk); white-space: nowrap; }
-  .login-link:hover { color: var(--olive); }
+  .dd-player > summary.btn { gap: 0.55rem; }
   .cart-link { display: inline-flex; align-items: center; gap: 0.4rem; text-decoration: none; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--chalk); }
   .cart-link span { display: inline-grid; place-items: center; min-width: 1.4rem; height: 1.4rem; padding-inline: 0.3rem; border-radius: 999px; background: var(--chalk); color: var(--forest); font-size: 0.7rem; letter-spacing: 0; }
   .cart-link:hover { color: var(--olive); }
-  @media (max-width: 480px) { .brand span { display: none; } .topbar-inner { gap: 1rem; } }
-  @media (max-width: 760px) { nav { display: none; } .cart-link { margin-left: auto; } .cart-link[hidden] + .login-link { margin-left: auto; } .login-link { letter-spacing: 0.1em; } .topbar-cta { padding: 0.6rem 0.9rem; letter-spacing: 0.1em; } }
 
+  /* Mobile menu */
+  .mnav { display: none; }
+  .burger { display: grid !important; gap: 4px; padding: 0.6rem; border: 1px solid var(--line); border-radius: 8px; }
+  .burger span { display: block; width: 18px; height: 2px; background: var(--chalk); border-radius: 2px; }
+  .mnav-panel { position: fixed; left: 0; right: 0; top: var(--hdr, 4rem); max-height: calc(100dvh - 4rem); overflow-y: auto; background: #fff; border-bottom: 1px solid var(--line); box-shadow: 0 16px 32px rgba(11, 31, 20, 0.12); padding: 0.5rem 1rem 1.2rem; }
+  .mgroup { border-bottom: 1px solid var(--line); }
+  .mgroup > summary { list-style: none; cursor: pointer; display: flex; justify-content: space-between; align-items: center; padding: 1rem 0.2rem; font-weight: 600; font-size: 0.95rem; color: var(--chalk); }
+  .mgroup > summary::-webkit-details-marker { display: none; }
+  .mgroup-items { display: grid; padding: 0 0 0.8rem 0.6rem; }
+  .mgroup-items a { padding: 0.55rem 0.2rem; text-decoration: none; color: var(--mist); font-size: 0.92rem; }
+
+  @media (max-width: 900px) {
+    .nav-desk { display: none; }
+    .mnav { display: block; }
+    .cart-link { margin-left: auto; }
+    .cart-link[hidden] + .dd-player { margin-left: auto; }
+    .topbar-cta { padding: 0.6rem 0.9rem; letter-spacing: 0.1em; }
+  }
+  @media (max-width: 480px) { .brand span { display: none; } .topbar-inner { gap: 0.7rem; } }
 </style>

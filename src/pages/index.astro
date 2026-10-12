@@ -289,8 +289,8 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
           <h2>Before your first game</h2>
         </div>
         <div class="faq-list">
-          {faqData.items.map((f) => (
-            <details>
+          {faqData.items.map((f, i) => (
+            <details id={`faq-${i}`}>
               <summary>{f.q}</summary>
               <p>{f.a}</p>
             </details>
@@ -337,9 +337,20 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
           if (d) { e.preventDefault(); pick(tabs[(i + d + tabs.length) % tabs.length], true); }
         });
       });
-      const want = location.hash.replace('#', '');
-      const t = tabs.find((x) => x.id === 'gt-' + want);
-      if (t) pick(t);
+      // Deep links from the menu: #guide-<topic> opens a guide tab, #faq-<n> opens a question.
+      const follow = () => {
+        const h = decodeURIComponent(location.hash.replace('#', ''));
+        if (h.startsWith('guide-')) {
+          const t = tabs.find((x) => x.id === 'gt-' + h.slice(6));
+          if (t) pick(t);
+          document.getElementById('guide').scrollIntoView();
+        } else if (h.startsWith('faq-')) {
+          const d = document.getElementById(h);
+          if (d) { d.open = true; d.scrollIntoView({ block: 'center' }); }
+        }
+      };
+      follow();
+      window.addEventListener('hashchange', follow);
     })();
   </script>
   <script type="module" is:inline>
