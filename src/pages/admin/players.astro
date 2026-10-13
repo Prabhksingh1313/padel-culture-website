@@ -269,7 +269,7 @@ const games = (await getCollection('games')).map((g) => ({
             <td>${esc(fmtTs(b.createdAt))}</td>
             <td><button type="button" class="pill ${b.paid ? 'pill-paid' : 'pill-due'}" data-act="paid" data-id="${esc(b.id)}">${b.paid ? 'Paid ✓' : 'Payment due'}</button></td>
             <td class="acts">
-              <button type="button" class="linkbtn" data-act="send" data-id="${esc(b.id)}" data-game="${esc(g.id)}">${b.linkSentAt ? 'Send again' : 'Send link'}</button>
+              <a class="linkbtn" data-act="send" data-id="${esc(b.id)}" data-game="${esc(g.id)}" href="${esc(waHref(b, g))}" target="_blank" rel="noopener">${b.linkSentAt ? 'Send again' : 'Send link'}</a>
               ${b.linkSentAt ? `<span class="muted small">sent ${esc(fmtTs(b.linkSentAt))}</span>` : ''}
               <button type="button" class="linkbtn danger" data-act="remove" data-id="${esc(b.id)}">Remove</button>
             </td>
@@ -293,10 +293,11 @@ const games = (await getCollection('games')).map((g) => ({
           <div class="eg-pay">
             <label>Payment link<input type="url" class="f-link" data-game="${esc(g.id)}" value="${esc(link)}" placeholder="Paste your UPI / Razorpay payment link" /></label>
             <div class="eg-pay-acts">
-              <button type="button" class="btn btn-solid" data-act="all" data-game="${esc(g.id)}" ${unpaid.length ? '' : 'disabled'}>${next ? `Send to ${esc((byUid[next.uid] || {}).name || next.name)} (${qi + 1} of ${unpaid.length}) →` : `Send to all unpaid (${unpaid.length})`}</button>
+              ${unpaid.length ? `<a class="btn btn-solid" data-act="all" data-game="${esc(g.id)}" href="${esc(waHref(next || unpaid[0], g))}" target="_blank" rel="noopener">${next ? `Send to ${esc((byUid[next.uid] || {}).name || next.name)} (${qi + 1} of ${unpaid.length}) →` : `Send to all unpaid (${unpaid.length})`}</a>` : '<button type="button" class="btn btn-solid" disabled>Everyone has paid</button>'}
               ${next ? `<button type="button" class="linkbtn" data-act="stop" data-game="${esc(g.id)}">Stop</button>` : ''}
               <button type="button" class="btn btn-ghost" data-act="csv" data-game="${esc(g.id)}" ${list.length ? '' : 'disabled'}>Download list</button>
             </div>
+            <p class="err eg-err" hidden>Paste your payment link here first. Then tap Send.</p>
           </div>
           ${list.length ? `<div class="table-wrap"><table><thead><tr><th class="num">#</th><th>Name</th><th>Mobile</th><th>Level</th><th>Booked</th><th>Payment</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">No online enrollments yet.</p>'}
           ${wl.length ? `<p class="wl-title">Waitlist (${wl.length}), first to join at the top</p><ol class="wl">${wl.map((w) => { const p = byUid[w.uid] || {}; return `<li>${esc(p.name || w.name)} · <a href="https://wa.me/${esc(waNum(p.phone))}" target="_blank" rel="noopener">${esc(p.phone || '')}</a></li>`; }).join('')}</ol>` : ''}
@@ -316,12 +317,10 @@ const games = (await getCollection('games')).map((g) => ({
       return msgTemplate.replace(/\{name\}/g, first).replace(/\{game\}/g, g.title).replace(/\{when\}/g, g.when)
         .replace(/\{venue\}/g, g.venue).replace(/\{price\}/g, inr(g.price)).replace(/\{link\}/g, link);
     }
-    function openWhatsApp(b, g) {
+    function waHref(b, g) {
       const p = players.find((x) => x.id === b.uid) || {};
       const num = waNum(p.phone);
-      if (!num) { note(`No mobile number for ${b.name}.`); return false; }
-      window.open(`https://wa.me/${num}?text=${encodeURIComponent(waMessage(b, g))}`, '_blank', 'noopener');
-      return true;
+      return num ? `https://wa.me/${num}?text=${encodeURIComponent(waMessage(b, g))}` : '#';
     }
     const gameById = (id) => JSON.parse($('games-data').textContent).find((g) => g.id === id);
     const rerender = () => renderBookings(allBookings, allWaitlist);
@@ -336,7 +335,16 @@ const games = (await getCollection('games')).map((g) => ({
       if (t.id === 'b-msg-reset') { msgTemplate = DEFAULT_MSG; try { localStorage.removeItem('pc-msg'); } catch (x) {} rerender(); return; }
       const act = t.dataset.act;
       const b = allBookings.find((x) => x.id === t.dataset.id);
-      const needLink = (g) => { if (!((links[g.id] ?? g.paymentLink) || '').trim()) { note('Paste your payment link first, then send.'); return true; } return false; };
+      const card = t.closest('.eg');
+      const needLink = (g) => {
+        const missing = !((links[g.id] ?? g.paymentLink) || '').trim();
+        if (card) { card.querySelector('.eg-err').hidden = !missing; if (missing) card.querySelector('.f-link').focus(); }
+        return missing;
+      };
+      const markSent = (bk) => {
+        fb.adminUpdateBooking(bk.id, { linkSentAt: new Date() }).catch((x) => console.error(x));
+        bk.linkSentAt = { toDate: () => new Date(), toMillis: () => Date.now() };
+      };
       try {
         if (act === 'paid' && b) {
           t.disabled = true;
@@ -344,26 +352,25 @@ const games = (await getCollection('games')).map((g) => ({
           b.paid = !b.paid; rerender();
         } else if (act === 'send' && b) {
           const g = gameById(t.dataset.game);
-          if (needLink(g)) return;
-          if (openWhatsApp(b, g)) {
-            const now = { toDate: () => new Date(), toMillis: () => Date.now() };
-            fb.adminUpdateBooking(b.id, { linkSentAt: new Date() }).catch((x) => console.error(x));
-            b.linkSentAt = now; rerender();
-          }
+          if (needLink(g)) { e.preventDefault(); return; }
+          const href = waHref(b, g);
+          if (href === '#') { e.preventDefault(); note(`No mobile number saved for ${b.name}.`); return; }
+          t.href = href;               // the link opens WhatsApp itself
+          markSent(b);
+          setTimeout(rerender, 400);
         } else if (act === 'all') {
           const g = gameById(t.dataset.game);
-          if (needLink(g)) return;
+          if (needLink(g)) { e.preventDefault(); return; }
           const unpaid = allBookings.filter((x) => x.gameId === g.id && !x.paid)
             .sort((a, c) => ((a.createdAt && a.createdAt.toMillis && a.createdAt.toMillis()) || 0) - ((c.createdAt && c.createdAt.toMillis && c.createdAt.toMillis()) || 0));
           const i = queue[g.id] ?? 0;
           const cur = unpaid[i];
-          if (!cur) { delete queue[g.id]; rerender(); return; }
-          if (openWhatsApp(cur, g)) {
-            fb.adminUpdateBooking(cur.id, { linkSentAt: new Date() }).catch((x) => console.error(x));
-            cur.linkSentAt = { toDate: () => new Date(), toMillis: () => Date.now() };
-          }
+          if (!cur) { e.preventDefault(); delete queue[g.id]; rerender(); return; }
+          t.href = waHref(cur, g);
+          if (t.href.endsWith('#')) { e.preventDefault(); note(`No mobile number saved for ${cur.name}.`); }
+          else markSent(cur);
           if (i + 1 < unpaid.length) queue[g.id] = i + 1; else { delete queue[g.id]; note(`Payment link sent to all ${unpaid.length} unpaid players for ${g.title}.`); }
-          rerender();
+          setTimeout(rerender, 400);
         } else if (act === 'stop') {
           delete queue[t.dataset.game]; rerender();
         } else if (act === 'remove' && b) {
