@@ -18,6 +18,8 @@ const menus: { label: string; href: string; items: Item[] }[] = [
   { label: 'Games', href: '/#games', items: [
     ...soon.map((g) => ({ label: g.label, sub: g.sub, href: '/#games' })),
     { label: 'All upcoming games', href: '/#games' },
+    { label: 'This week', href: '/#this-week' },
+    { label: 'Highlights', href: '/#highlights' },
   ] },
   { label: 'Padel guide', href: '/#guide', items: [
     { label: 'History of padel', href: '/#guide-history' },

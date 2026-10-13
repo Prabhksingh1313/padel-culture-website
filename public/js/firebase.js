@@ -146,7 +146,7 @@ export async function adminApplySession(results, session) {
     };
     if (r.partnersNew && r.partnersNew.length) pdata.partners = arrayUnion(...r.partnersNew);
     batch.set(doc(db, 'players', r.uid), pdata, { merge: true });
-    batch.set(doc(db, 'leaderboard', r.uid), { name: r.name, rating: r.after, tier: r.tier, status: r.status, scale: 7, sessions: r.sessionsAfter, lastSessionAt: at, form: r.form, updatedAt: serverTimestamp() }, { merge: true });
+    batch.set(doc(db, 'leaderboard', r.uid), { name: r.name, rating: r.after, tier: r.tier, status: r.status, scale: 7, sessions: r.sessionsAfter, lastSessionAt: at, form: r.form, lastDelta: r.delta, lastPerf: Math.round((r.share - r.exp) * 1000) / 1000, lastSessionTitle: session.title, updatedAt: serverTimestamp() }, { merge: true });
   }
   batch.set(ref, { ...session, results: Object.fromEntries(results.map((r) => [r.uid, { before: r.before, after: r.after, delta: r.delta }])), createdAt: serverTimestamp() });
   await batch.commit();

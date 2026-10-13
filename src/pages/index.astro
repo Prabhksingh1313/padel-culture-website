@@ -6,6 +6,7 @@ import { getCollection } from 'astro:content';
 import site from '../data/site.json';
 import faqData from '../data/faq.json';
 import gallery from '../data/gallery.json';
+import highlightsData from '../data/highlights.json';
 import fbConfig from '../data/firebase.json';
 import fs from 'node:fs';
 const hasVideo = fs.existsSync('public/video/hero.mp4');
@@ -60,6 +61,21 @@ const jsonld = [
   })),
 ];
 function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!m) return t; const h = Number(m[1]); return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'am' : 'pm'}`; }
+// Highlights: Instagram reels, YouTube Shorts or a video file on the site.
+type HL = { title: string; url: string; poster?: string; tag?: string; date?: string };
+const highlights = (highlightsData.items as HL[])
+  .map((h) => {
+    const url = String(h.url || '').trim();
+    const ig = url.match(/instagram\.com\/(?:reel|reels|p)\/([A-Za-z0-9_-]+)/);
+    const yt = url.match(/(?:youtube\.com\/(?:shorts\/|watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
+    const kind = ig ? 'ig' : yt ? 'yt' : /\.(mp4|webm|mov)(\?|$)/i.test(url) ? 'file' : '';
+    const embed = ig ? `https://www.instagram.com/reel/${ig[1]}/embed/` : yt ? `https://www.youtube.com/embed/${yt[1]}?autoplay=1&playsinline=1&rel=0` : url;
+    return { ...h, url, kind, embed };
+  })
+  .filter((h) => h.kind)
+  .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
+const hlTags = [...new Set(highlights.map((h) => h.tag).filter(Boolean))];
+
 ---
 <Base jsonld={jsonld}>
   <Header joinHref={joinHref} />
@@ -175,6 +191,51 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
         </p>
       </div>
     </section>
+
+    <!-- THIS WEEK -->
+    <section id="this-week" class="week" aria-labelledby="h-week">
+      <div class="wrap">
+        <div class="week-head">
+          <p class="eyebrow">Updated after every session</p>
+          <h2 id="h-week">This week at Padel Culture</h2>
+        </div>
+        <div class="week-grid" id="wk-grid">
+          <div class="wk wk-skel"></div><div class="wk wk-skel"></div><div class="wk wk-skel"></div><div class="wk wk-skel"></div>
+        </div>
+      </div>
+    </section>
+
+    {highlights.length > 0 && (
+      <section id="highlights" class="hl" aria-labelledby="h-hl">
+        <div class="wrap">
+          <div class="hl-head">
+            <div>
+              <p class="eyebrow">On court</p>
+              <h2 id="h-hl">Highlights</h2>
+            </div>
+            {hlTags.length > 1 && (
+              <div class="hl-tags" role="group" aria-label="Filter highlights">
+                <button type="button" class="hl-tag" data-tag="" aria-pressed="true">All</button>
+                {hlTags.map((t) => <button type="button" class="hl-tag" data-tag={t} aria-pressed="false">{t}</button>)}
+              </div>
+            )}
+          </div>
+          <div class="hl-row">
+            {highlights.map((h) => (
+              <figure class="hl-item" data-tag={h.tag || ''}>
+                <button type="button" class="hl-play" data-kind={h.kind} data-embed={h.embed} aria-label={`Play: ${h.title}`}>
+                  {h.poster ? <img src={h.poster} alt="" loading="lazy" /> : <span class="hl-blank" aria-hidden="true"></span>}
+                  <span class="hl-btn" aria-hidden="true">▶</span>
+                  {h.tag && <span class="hl-chip">{h.tag}</span>}
+                </button>
+                <figcaption>{h.title}</figcaption>
+              </figure>
+            ))}
+          </div>
+          <p class="hl-cta"><a class="btn btn-solid" href="#games">Book the next one</a> <a class="btn btn-ghost" href={site.instagram} target="_blank" rel="noopener">More on Instagram</a></p>
+        </div>
+      </section>
+    )}
 
     <!-- PADEL GUIDE -->
     <section id="guide" class="guide-sec">
@@ -370,6 +431,30 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
       window.addEventListener('hashchange', follow);
     })();
   </script>
+
+  <script is:inline>
+    (() => {
+      document.querySelectorAll('.hl-play').forEach((b) => b.addEventListener('click', () => {
+        const kind = b.dataset.kind, src = b.dataset.embed;
+        let el;
+        if (kind === 'file') {
+          el = document.createElement('video');
+          Object.assign(el, { src, controls: true, autoplay: true, playsInline: true });
+        } else {
+          el = document.createElement('iframe');
+          Object.assign(el, { src, allow: 'autoplay; encrypted-media; picture-in-picture', allowFullscreen: true, loading: 'lazy', title: b.getAttribute('aria-label') });
+          el.setAttribute('frameborder', '0');
+          el.setAttribute('scrolling', 'no');
+        }
+        el.className = 'hl-media';
+        b.replaceWith(el);
+      }));
+      document.querySelectorAll('.hl-tag').forEach((t) => t.addEventListener('click', () => {
+        document.querySelectorAll('.hl-tag').forEach((x) => x.setAttribute('aria-pressed', String(x === t)));
+        document.querySelectorAll('.hl-item').forEach((it) => { it.hidden = !!t.dataset.tag && it.dataset.tag !== t.dataset.tag; });
+      }));
+    })();
+  </script>
   <script type="module" is:inline>
     const $ = (id) => document.getElementById(id);
     const rows = [...document.querySelectorAll('#board .fixture')];
@@ -465,14 +550,51 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
     }));
     paint();
 
+    // ---------- This week at Padel Culture ----------
+    function renderWeek(raw, counts, RT) {
+      const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      const weekAgo = Date.now() - 7 * 864e5;
+      const list = raw.map((r) => { const rating = RT.normRating(r); return { ...r, rating, tier: RT.tierFor(rating).name }; });
+      const recent = list.filter((r) => typeof r.lastSessionAt === 'number' && r.lastSessionAt >= weekAgo);
+      const cards = [];
+      const climber = recent.filter((r) => typeof r.lastDelta === 'number' && r.lastDelta > 0).sort((a, b) => b.lastDelta - a.lastDelta)[0];
+      if (climber) cards.push({ k: 'Biggest climber', big: `▲ +${climber.lastDelta.toFixed(2)}`, name: climber.name, sub: `${RT.show1(climber.rating)} · ${climber.tier}` });
+      const star = recent.filter((r) => typeof r.lastPerf === 'number' && r.lastPerf > 0 && r !== climber).sort((a, b) => b.lastPerf - a.lastPerf)[0]
+        || recent.filter((r) => typeof r.lastPerf === 'number' && r.lastPerf > 0).sort((a, b) => b.lastPerf - a.lastPerf)[0];
+      if (star) cards.push({ k: 'Player of the session', big: `+${Math.round(star.lastPerf * 100)}%`, name: star.name, sub: `above expected · ${esc(star.lastSessionTitle || 'last session')}` });
+      const streak = list.filter((r) => Array.isArray(r.form) && r.form.length >= 3 && r.form.slice(0, 3).every((b) => b === 'up')).sort((a, b) => b.rating - a.rating);
+      if (streak.length) cards.push({ k: 'On a hot streak', big: '▲▲▲', name: streak.slice(0, 3).map((r) => r.name).join(', '), sub: streak.length > 3 ? `and ${streak.length - 3} more` : 'three sessions above expected' });
+      // Next game filling up
+      const nextRow = rows.filter((r) => !r.hidden && Date.parse(r.dataset.start) > Date.now()).sort((a, b) => Date.parse(a.dataset.start) - Date.parse(b.dataset.start))[0];
+      if (nextRow) {
+        const id = nextRow.dataset.id, spots = +nextRow.dataset.spots;
+        const taken = Math.min(spots, (+nextRow.dataset.reserved || 0) + ((counts[id] && counts[id].booked) || 0));
+        const title = nextRow.querySelector('.what h3') ? nextRow.querySelector('.what h3').textContent : 'Next game';
+        cards.push({ k: 'Next game', big: `${taken}/${spots}`, name: title, sub: taken >= spots ? 'Full · join the waitlist' : `${spots - taken} spot${spots - taken === 1 ? '' : 's'} left`, href: '#games', cta: taken >= spots ? 'Join waitlist' : 'Book now' });
+      }
+      const proven = list.filter((r) => r.status === 'verified').length;
+      cards.push({ k: 'The community', big: String(list.length), name: `rated player${list.length === 1 ? '' : 's'}`, sub: proven ? `${proven} Court-Proven` : 'Get rated in 2 minutes', href: list.length ? '/leaderboard' : '/join', cta: list.length ? 'See the leaderboard' : 'Get your rating' });
+      if (!climber && !star && !streak.length) cards.splice(cards.length - 1, 0, { k: 'Coming up', big: '▲', name: 'Weekly highlights', sub: 'Biggest climber and player of the session appear here after the next rated session.' });
+      $('wk-grid').innerHTML = cards.slice(0, 4).map((c) => `<${c.href ? `a href="${c.href}"` : 'div'} class="wk">
+          <span class="wk-k">${esc(c.k)}</span>
+          <span class="wk-big">${esc(c.big)}</span>
+          <span class="wk-name">${esc(c.name)}</span>
+          <span class="wk-sub">${c.sub}</span>
+          ${c.cta ? `<span class="wk-cta">${esc(c.cta)} →</span>` : ''}
+        </${c.href ? 'a' : 'div'}>`).join('');
+    }
+
     // Live spot counts and the player's own bookings.
     const cfg = JSON.parse($('fb-config').textContent);
+    if (!cfg.apiKey) import('/js/rating.js').then((RT) => renderWeek([], {}, RT));
     if (cfg.apiKey) {
       try {
         const fb = await import('/js/firebase.js');
         fbm = fb;
         const RT = await import('/js/rating.js');
-        fb.listLeaderboard().then((raw) => {
+        const lbPromise = fb.listLeaderboard();
+        Promise.all([lbPromise, fb.listGameCounts().catch(() => ({}))]).then(([raw, counts]) => renderWeek(raw, counts, RT)).catch((e) => { console.error(e); renderWeek([], {}, RT); });
+        lbPromise.then((raw) => {
           const list = raw.map((r) => { const rating = RT.normRating(r); return { ...r, rating, tier: RT.tierFor(rating).name }; }).sort((a, b) => b.rating - a.rating);
           const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
           $('lb-top').innerHTML = list.length
@@ -628,6 +750,42 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
   }
 
   /* How it works: a real sequence, so it's numbered */
+  .week { background: var(--forest); }
+  .week-head { display: grid; gap: 0.6rem; margin-bottom: 1.6rem; }
+  .week-head h2 { font-size: clamp(2rem, 4.5vw, 3rem); }
+  .week-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; }
+  .week-grid :global(.wk) { display: grid; gap: 0.35rem; align-content: start; padding: 1.3rem; border: 1px solid var(--line); border-radius: 12px; background: var(--pine); text-decoration: none; color: var(--chalk); min-height: 11rem; transition: transform .15s, background .15s; }
+  .week-grid :global(a.wk:hover) { background: var(--moss); transform: translateY(-2px); }
+  .week-grid :global(.wk-skel) { background: linear-gradient(90deg, var(--pine), var(--moss), var(--pine)); background-size: 200% 100%; animation: shimmer 1.4s infinite; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+  .week-grid :global(.wk-k) { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--olive); }
+  .week-grid :global(.wk-big) { font-family: var(--display); font-size: 2.6rem; line-height: 1; color: var(--sage); }
+  .week-grid :global(.wk-name) { font-weight: 600; font-size: 1rem; }
+  .week-grid :global(.wk-sub) { font-size: 0.85rem; color: var(--mist); line-height: 1.45; }
+  .week-grid :global(.wk-cta) { margin-top: 0.4rem; font-size: 0.85rem; font-weight: 600; color: var(--sage); }
+  @media (max-width: 960px) { .week-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 480px) { .week-grid { grid-template-columns: 1fr; } }
+  .hl { background: #0B1F14; color: #F2F6EC; }
+  .hl .eyebrow { color: #C8E06B; }
+  .hl-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 1rem 2rem; margin-bottom: 1.6rem; }
+  .hl-head h2 { font-size: clamp(2.2rem, 5vw, 3.4rem); color: #fff; }
+  .hl-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  .hl-tag { font: 500 0.82rem var(--body); padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(242,246,236,.3); background: transparent; color: #F2F6EC; cursor: pointer; }
+  .hl-tag[aria-pressed="true"] { background: #C8E06B; border-color: #C8E06B; color: #0B1F14; }
+  .hl-row { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(15rem, 18rem); gap: 1rem; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 0.6rem; }
+  .hl-item { margin: 0; display: grid; gap: 0.6rem; scroll-snap-align: start; }
+  .hl-item[hidden] { display: none; }
+  .hl-play, .hl-row :global(.hl-media) { position: relative; display: block; width: 100%; aspect-ratio: 9 / 16; border: 0; padding: 0; border-radius: 14px; overflow: hidden; background: #12301d; cursor: pointer; }
+  .hl-row :global(.hl-media) { cursor: auto; background: #000; }
+  .hl-play img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .3s; }
+  .hl-play:hover img { transform: scale(1.04); }
+  .hl-blank { position: absolute; inset: 0; background: radial-gradient(120% 80% at 50% 20%, #24452b, #0B1F14); }
+  .hl-btn { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 4rem; height: 4rem; display: grid; place-items: center; border-radius: 50%; background: rgba(200,224,107,.92); color: #0B1F14; font-size: 1.3rem; padding-left: 0.2rem; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+  .hl-chip { position: absolute; left: 0.8rem; top: 0.8rem; padding: 0.3rem 0.7rem; border-radius: 999px; background: rgba(11,31,20,.75); color: #fff; font-size: 0.75rem; }
+  .hl-item figcaption { font-size: 0.95rem; color: rgba(242,246,236,.9); }
+  .hl-cta { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-top: 1.6rem; }
+  .hl .btn-ghost { color: #F2F6EC; border-color: rgba(242,246,236,.5); }
+  .hl .btn-ghost:hover { background: rgba(255,255,255,.1); }
   section[id] { scroll-margin-top: 4.5rem; }
   .guide-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 2rem 4rem; align-items: start; }
   .g-tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.8rem; }

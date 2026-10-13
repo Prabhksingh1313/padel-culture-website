@@ -79,6 +79,20 @@ collections:
             fields:
               - { label: Question, name: q, widget: string }
               - { label: Answer, name: a, widget: text }
+      - name: highlights
+        label: Highlights (videos)
+        file: src/data/highlights.json
+        fields:
+          - label: Videos
+            name: items
+            widget: list
+            summary: "{{fields.date}} · {{fields.title}}"
+            fields:
+              - { label: Title, name: title, widget: string, hint: "e.g. Thursday Americano at Skyball" }
+              - { label: Video link, name: url, widget: string, hint: "Paste an Instagram reel link (instagram.com/reel/...) or a YouTube Shorts link." }
+              - { label: Cover image (optional), name: poster, widget: image, required: false, hint: "A still from the video. Without one, a branded tile is shown." }
+              - { label: Tag, name: tag, widget: select, options: [Americano, Mexicano, King of the Court, Tournament, Rally, Smash, Beginners, Fun], default: Americano }
+              - { label: Date, name: date, widget: datetime, format: "YYYY-MM-DD", date_format: "DD MMM YYYY", time_format: false }
       - name: gallery
         label: Photo gallery
         file: src/data/gallery.json
