@@ -17,6 +17,7 @@ const games = defineCollection({
     reserved: z.number().default(0),     // spots taken offline (cash/WhatsApp)
     spotsLeft: z.number().optional(),  // old field, no longer used
     bookingLink: z.string().optional(),
+    paymentLink: z.string().optional(),  // sent to players by WhatsApp from the dashboard
     status: z.enum(['open', 'full', 'cancelled']).default('open'),
   }),
 });

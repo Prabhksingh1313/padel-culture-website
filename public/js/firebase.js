@@ -200,6 +200,21 @@ export async function listGameBookings(gameId) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+// Organisers only: update a booking (payment status, message sent).
+export async function adminUpdateBooking(id, fields) {
+  await setDoc(doc(db, 'bookings', id), fields, { merge: true });
+}
+// Organisers only: remove a player from a game and free the spot.
+export async function adminRemoveBooking(b) {
+  const gRef = doc(db, 'games', b.gameId);
+  await runTransaction(db, async (tx) => {
+    const g = await tx.get(gRef);
+    const data = g.exists() ? g.data() : { spots: 1, booked: 1 };
+    tx.set(gRef, { spots: data.spots, booked: Math.max(0, (data.booked || 1) - 1) });
+    tx.delete(doc(db, 'bookings', b.id));
+  });
+}
+
 export async function listAllBookings() {
   const snap = await getDocs(collection(db, 'bookings'));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));

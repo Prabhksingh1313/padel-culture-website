@@ -33,6 +33,7 @@ collections:
       - { label: Total spots, name: spots, widget: number, value_type: int, default: 16 }
       - { label: Spots taken offline, name: reserved, widget: number, value_type: int, default: 0, required: false, hint: "Spots you've filled outside the website (WhatsApp, cash). Online bookings are counted automatically." }
       - { label: Booking link (optional), name: bookingLink, widget: string, required: false, hint: "Optional. If set, Book spot opens this link instead of the website cart." }
+      - { label: Payment link (optional), name: paymentLink, widget: string, required: false, hint: "UPI or Razorpay link sent to players from the dashboard. Leave empty to use the default payment link in Site settings." }
       - { label: Status, name: status, widget: select, options: [open, full, cancelled], default: open }
       - { label: Notes, name: body, widget: markdown, required: false }
 
@@ -49,6 +50,7 @@ collections:
           - { label: About text, name: about, widget: text }
           - { label: WhatsApp number (with country code, e.g. 919876543210), name: whatsappNumber, widget: string, required: false }
           - { label: WhatsApp community / group link, name: whatsappGroupLink, widget: string, required: false }
+          - { label: Default payment link (UPI / Razorpay), name: paymentLink, widget: string, required: false, hint: "Sent to players from the dashboard's Enrollments tab." }
           - { label: Instagram URL, name: instagram, widget: string }
           - { label: Instagram handle, name: instagramHandle, widget: string }
           - { label: Email, name: email, widget: string, required: false }

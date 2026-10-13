@@ -1,6 +1,7 @@
 ---
 import Base from '../../layouts/Base.astro';
 import fb from '../../data/firebase.json';
+import site from '../../data/site.json';
 import { getCollection } from 'astro:content';
 const tz = 'Asia/Kolkata';
 const games = (await getCollection('games')).map((g) => ({
@@ -10,6 +11,10 @@ const games = (await getCollection('games')).map((g) => ({
   start: g.data.date.toISOString(),
   spots: g.data.spots,
   reserved: g.data.reserved || 0,
+  venue: g.data.venue,
+  price: g.data.price,
+  status: g.data.status,
+  paymentLink: g.data.paymentLink || (site as { paymentLink?: string }).paymentLink || '',
 }));
 ---
 <Base title="Dashboard | Padel Culture admin" description="Padel Culture organiser dashboard">
@@ -56,7 +61,7 @@ const games = (await getCollection('games')).map((g) => ({
     <section id="s-list" hidden>
       <div class="tabs" role="tablist" aria-label="Dashboard">
         <button type="button" role="tab" class="tab" data-tab="players" aria-selected="true">Players</button>
-        <button type="button" role="tab" class="tab" data-tab="bookings" aria-selected="false">Bookings &amp; waitlist</button>
+        <button type="button" role="tab" class="tab" data-tab="bookings" aria-selected="false">Enrollments</button>
         <button type="button" role="tab" class="tab" data-tab="scores" aria-selected="false">Scores &amp; ratings</button>
         <a class="tab tab-link" href="/admin/">Games &amp; site text ↗</a>
       </div>
@@ -86,8 +91,9 @@ const games = (await getCollection('games')).map((g) => ({
       </div>
 
       <div class="tabpanel" id="tab-bookings" hidden>
-        <h1>Bookings &amp; waitlist</h1>
-        <div id="t-bookings" class="bookings"></div>
+        <h1>Enrollments</h1>
+        <p class="muted how">Everyone who booked each game, with payment status. When enrollments are in, send each player your payment link on WhatsApp: tap <strong>Send link</strong> for one player, or <strong>Send to all unpaid</strong> to go through them one by one. Each tap opens WhatsApp (or WhatsApp Business) with the message ready, and you press send. Mark players Paid as the money comes in.</p>
+        <div id="t-bookings" class="enroll"></div>
       </div>
 
       <div class="tabpanel" id="tab-scores" hidden>
@@ -229,21 +235,162 @@ const games = (await getCollection('games')).map((g) => ({
       }
     });
 
+    // ---------- Enrollments ----------
+    let allBookings = [], allWaitlist = [];
+    const DEFAULT_MSG = "Hi {name}! Your spot in {game} on {when} at {venue} is reserved. To confirm it, please pay {price} here: {link}\n\nSee you on court!\nPadel Culture";
+    let msgTemplate = DEFAULT_MSG;
+    try { msgTemplate = localStorage.getItem('pc-msg') || DEFAULT_MSG; } catch (e) {}
+    const links = {};   // gameId -> payment link typed in this session
+    const queue = {};   // gameId -> index in "send to all"
+    const inr = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
+    const waNum = (phone) => String(phone || '').replace(/\D/g, '');
+    const fmtTs = (ts) => ts && ts.toDate ? ts.toDate().toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+
     function renderBookings(bookings, waitlist = []) {
+      allBookings = bookings; allWaitlist = waitlist;
       const games = JSON.parse($('games-data').textContent).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
       const byUid = Object.fromEntries(players.map((p) => [p.id, p]));
       const upcoming = games.filter((g) => Date.parse(g.start) + 3 * 3600e3 > Date.now());
       $('t-bookings').innerHTML = upcoming.map((g) => {
-        const list = bookings.filter((b) => b.gameId === g.id);
+        const list = bookings.filter((b) => b.gameId === g.id)
+          .sort((a, b) => ((a.createdAt && a.createdAt.toMillis && a.createdAt.toMillis()) || 0) - ((b.createdAt && b.createdAt.toMillis && b.createdAt.toMillis()) || 0));
+        const paid = list.filter((b) => b.paid).length;
         const taken = list.length + g.reserved;
-        return `<div class="bk-game">
-          <h3>${esc(g.title)} <span class="muted">· ${esc(g.when)}</span></h3>
-          <p class="muted">${taken} of ${g.spots} spots taken (${list.length} online, ${g.reserved} offline)</p>
-          ${list.length ? `<ol>${list.map((b) => { const p = byUid[b.uid] || {}; return `<li>${esc(p.name || b.name)} · <a href="https://wa.me/${esc((p.phone || '').replace('+', ''))}" target="_blank" rel="noopener">${esc(p.phone || '')}</a> · ${b.paid ? 'Paid' : 'Payment due'}</li>`; }).join('')}</ol>` : '<p class="muted">No online bookings yet.</p>'}
-          ${(() => { const wl = waitlist.filter((w) => w.gameId === g.id); return wl.length ? `<p class="wl-title">Waitlist (${wl.length}), first to join at the top</p><ol>${wl.map((w) => { const p = byUid[w.uid] || {}; return `<li>${esc(p.name || w.name)} · <a href="https://wa.me/${esc((p.phone || '').replace('+', ''))}" target="_blank" rel="noopener">${esc(p.phone || '')}</a></li>`; }).join('')}</ol>` : '<p class="muted">Nobody on the waitlist.</p>'; })()}
-        </div>`;
+        const link = links[g.id] ?? g.paymentLink;
+        const wl = waitlist.filter((w) => w.gameId === g.id);
+        const rows = list.map((b, i) => {
+          const p = byUid[b.uid] || {};
+          const lvl = typeof p.rating === 'number' ? `${R.show1(p.rating)} · ${esc(tierFor(p.rating).name)}` : '<span class="muted">Not rated</span>';
+          return `<tr class="${b.paid ? 'is-paid' : ''}">
+            <td class="num">${i + 1}</td>
+            <td><strong>${esc(p.name || b.name)}</strong></td>
+            <td><a href="https://wa.me/${esc(waNum(p.phone))}" target="_blank" rel="noopener">${esc(p.phone || '')}</a></td>
+            <td>${lvl}</td>
+            <td>${esc(fmtTs(b.createdAt))}</td>
+            <td><button type="button" class="pill ${b.paid ? 'pill-paid' : 'pill-due'}" data-act="paid" data-id="${esc(b.id)}">${b.paid ? 'Paid ✓' : 'Payment due'}</button></td>
+            <td class="acts">
+              <button type="button" class="linkbtn" data-act="send" data-id="${esc(b.id)}" data-game="${esc(g.id)}">${b.linkSentAt ? 'Send again' : 'Send link'}</button>
+              ${b.linkSentAt ? `<span class="muted small">sent ${esc(fmtTs(b.linkSentAt))}</span>` : ''}
+              <button type="button" class="linkbtn danger" data-act="remove" data-id="${esc(b.id)}">Remove</button>
+            </td>
+          </tr>`;
+        }).join('');
+        const unpaid = list.filter((b) => !b.paid);
+        const qi = queue[g.id];
+        const next = qi != null ? unpaid[qi] : null;
+        return `<article class="eg" data-game="${esc(g.id)}">
+          <header class="eg-head">
+            <div>
+              <h3>${esc(g.title)}</h3>
+              <p class="muted">${esc(g.when)} · ${esc(g.venue)} · ${inr(g.price)}</p>
+            </div>
+            <div class="eg-stats">
+              <span><strong>${taken}</strong>/${g.spots} spots</span>
+              <span><strong>${list.length}</strong> online${g.reserved ? ` · ${g.reserved} offline` : ''}</span>
+              <span><strong>${paid}</strong> paid · <strong>${list.length - paid}</strong> due</span>
+            </div>
+          </header>
+          <div class="eg-pay">
+            <label>Payment link<input type="url" class="f-link" data-game="${esc(g.id)}" value="${esc(link)}" placeholder="Paste your UPI / Razorpay payment link" /></label>
+            <div class="eg-pay-acts">
+              <button type="button" class="btn btn-solid" data-act="all" data-game="${esc(g.id)}" ${unpaid.length ? '' : 'disabled'}>${next ? `Send to ${esc((byUid[next.uid] || {}).name || next.name)} (${qi + 1} of ${unpaid.length}) →` : `Send to all unpaid (${unpaid.length})`}</button>
+              ${next ? `<button type="button" class="linkbtn" data-act="stop" data-game="${esc(g.id)}">Stop</button>` : ''}
+              <button type="button" class="btn btn-ghost" data-act="csv" data-game="${esc(g.id)}" ${list.length ? '' : 'disabled'}>Download list</button>
+            </div>
+          </div>
+          ${list.length ? `<div class="table-wrap"><table><thead><tr><th class="num">#</th><th>Name</th><th>Mobile</th><th>Level</th><th>Booked</th><th>Payment</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">No online enrollments yet.</p>'}
+          ${wl.length ? `<p class="wl-title">Waitlist (${wl.length}), first to join at the top</p><ol class="wl">${wl.map((w) => { const p = byUid[w.uid] || {}; return `<li>${esc(p.name || w.name)} · <a href="https://wa.me/${esc(waNum(p.phone))}" target="_blank" rel="noopener">${esc(p.phone || '')}</a></li>`; }).join('')}</ol>` : ''}
+        </article>`;
       }).join('') || '<p class="muted">No upcoming games.</p>';
+      $('t-bookings').insertAdjacentHTML('beforeend', `<details class="msg-edit"><summary>Edit the WhatsApp message</summary>
+        <p class="muted small">Use {name}, {game}, {when}, {venue}, {price} and {link}. They're filled in for each player.</p>
+        <textarea id="f-msg" rows="6">${esc(msgTemplate)}</textarea>
+        <div class="sc-actions"><button type="button" class="btn btn-ghost" id="b-msg-save">Save message</button><button type="button" class="linkbtn" id="b-msg-reset">Reset to default</button></div></details>`);
     }
+
+    function waMessage(b, g) {
+      const byUid = Object.fromEntries(players.map((p) => [p.id, p]));
+      const p = byUid[b.uid] || {};
+      const first = String(p.name || b.name || '').trim().split(/\s+/)[0] || 'there';
+      const link = (links[g.id] ?? g.paymentLink) || '';
+      return msgTemplate.replace(/\{name\}/g, first).replace(/\{game\}/g, g.title).replace(/\{when\}/g, g.when)
+        .replace(/\{venue\}/g, g.venue).replace(/\{price\}/g, inr(g.price)).replace(/\{link\}/g, link);
+    }
+    function openWhatsApp(b, g) {
+      const p = players.find((x) => x.id === b.uid) || {};
+      const num = waNum(p.phone);
+      if (!num) { note(`No mobile number for ${b.name}.`); return false; }
+      window.open(`https://wa.me/${num}?text=${encodeURIComponent(waMessage(b, g))}`, '_blank', 'noopener');
+      return true;
+    }
+    const gameById = (id) => JSON.parse($('games-data').textContent).find((g) => g.id === id);
+    const rerender = () => renderBookings(allBookings, allWaitlist);
+
+    $('t-bookings').addEventListener('input', (e) => {
+      if (e.target.classList.contains('f-link')) links[e.target.dataset.game] = e.target.value.trim();
+    });
+    $('t-bookings').addEventListener('click', async (e) => {
+      const t = e.target.closest('[data-act], #b-msg-save, #b-msg-reset');
+      if (!t) return;
+      if (t.id === 'b-msg-save') { msgTemplate = $('f-msg').value || DEFAULT_MSG; try { localStorage.setItem('pc-msg', msgTemplate); } catch (x) {} note('Message saved on this device.'); return; }
+      if (t.id === 'b-msg-reset') { msgTemplate = DEFAULT_MSG; try { localStorage.removeItem('pc-msg'); } catch (x) {} rerender(); return; }
+      const act = t.dataset.act;
+      const b = allBookings.find((x) => x.id === t.dataset.id);
+      const needLink = (g) => { if (!((links[g.id] ?? g.paymentLink) || '').trim()) { note('Paste your payment link first, then send.'); return true; } return false; };
+      try {
+        if (act === 'paid' && b) {
+          t.disabled = true;
+          await fb.adminUpdateBooking(b.id, { paid: !b.paid });
+          b.paid = !b.paid; rerender();
+        } else if (act === 'send' && b) {
+          const g = gameById(t.dataset.game);
+          if (needLink(g)) return;
+          if (openWhatsApp(b, g)) {
+            const now = { toDate: () => new Date(), toMillis: () => Date.now() };
+            fb.adminUpdateBooking(b.id, { linkSentAt: new Date() }).catch((x) => console.error(x));
+            b.linkSentAt = now; rerender();
+          }
+        } else if (act === 'all') {
+          const g = gameById(t.dataset.game);
+          if (needLink(g)) return;
+          const unpaid = allBookings.filter((x) => x.gameId === g.id && !x.paid)
+            .sort((a, c) => ((a.createdAt && a.createdAt.toMillis && a.createdAt.toMillis()) || 0) - ((c.createdAt && c.createdAt.toMillis && c.createdAt.toMillis()) || 0));
+          const i = queue[g.id] ?? 0;
+          const cur = unpaid[i];
+          if (!cur) { delete queue[g.id]; rerender(); return; }
+          if (openWhatsApp(cur, g)) {
+            fb.adminUpdateBooking(cur.id, { linkSentAt: new Date() }).catch((x) => console.error(x));
+            cur.linkSentAt = { toDate: () => new Date(), toMillis: () => Date.now() };
+          }
+          if (i + 1 < unpaid.length) queue[g.id] = i + 1; else { delete queue[g.id]; note(`Payment link sent to all ${unpaid.length} unpaid players for ${g.title}.`); }
+          rerender();
+        } else if (act === 'stop') {
+          delete queue[t.dataset.game]; rerender();
+        } else if (act === 'remove' && b) {
+          if (t.dataset.confirming !== '1') { t.dataset.confirming = '1'; t.textContent = 'Tap again to remove'; return; }
+          t.disabled = true;
+          await fb.adminRemoveBooking(b);
+          allBookings = allBookings.filter((x) => x.id !== b.id); rerender();
+          note(`${b.name} removed. The spot is free again.`);
+        } else if (act === 'csv') {
+          const g = gameById(t.dataset.game);
+          const byUid = Object.fromEntries(players.map((p) => [p.id, p]));
+          const list = allBookings.filter((x) => x.gameId === g.id);
+          const cell = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+          const lines = [['Name', 'Mobile', 'Rating', 'Level', 'Booked', 'Paid', 'Link sent'].map(cell).join(',')].concat(list.map((x) => {
+            const p = byUid[x.uid] || {};
+            return [p.name || x.name, p.phone, typeof p.rating === 'number' ? R.show1(p.rating) : '', typeof p.rating === 'number' ? tierFor(p.rating).name : '', fmtTs(x.createdAt), x.paid ? 'Yes' : 'No', x.linkSentAt ? 'Yes' : 'No'].map(cell).join(',');
+          }));
+          const url = URL.createObjectURL(new Blob(['﻿' + lines.join('\n')], { type: 'text/csv' }));
+          Object.assign(document.createElement('a'), { href: url, download: `enrollments-${g.id}.csv` }).click();
+          URL.revokeObjectURL(url);
+        }
+      } catch (ex) {
+        console.error(ex);
+        note(`Couldn't update. (${(ex && ex.code) || 'unknown'})`);
+        rerender();
+      }
+    });
 
     $('f-phone').addEventListener('input', (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 10); });
     let confirmation;
@@ -549,7 +696,31 @@ const games = (await getCollection('games')).map((g) => ({
   .bookings { display: grid; gap: 1rem; }
   .bookings :global(.bk-game) { padding: 1.2rem; border: 1px solid var(--line); border-radius: 8px; background: var(--pine); display: grid; gap: 0.4rem; }
   .bookings :global(h3) { font-size: 1.4rem; }
-  .bookings :global(.wl-title) { margin-top: 0.6rem; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--olive); }
+  .enroll { display: grid; gap: 1.5rem; }
+  .enroll :global(.eg) { display: grid; gap: 1rem; padding: 1.3rem; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+  .enroll :global(.eg-head) { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.8rem 2rem; align-items: flex-start; }
+  .enroll :global(.eg-head h3) { font-size: 1.6rem; }
+  .enroll :global(.eg-stats) { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .enroll :global(.eg-stats span) { padding: 0.4rem 0.8rem; border-radius: 999px; background: var(--pine); font-size: 0.85rem; color: var(--mist); }
+  .enroll :global(.eg-stats strong) { color: var(--chalk); }
+  .enroll :global(.eg-pay) { display: flex; flex-wrap: wrap; gap: 0.8rem 1.2rem; align-items: flex-end; padding: 1rem; border-radius: 10px; background: var(--pine); }
+  .enroll :global(.eg-pay label) { display: grid; gap: 0.35rem; flex: 1 1 20rem; }
+  .enroll :global(.eg-pay input) { width: 100%; font: 400 0.95rem var(--body); padding: 0.65rem 0.8rem; border: 1px solid var(--line); border-radius: 6px; background: #fff; color: var(--chalk); }
+  .enroll :global(.eg-pay-acts) { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+  .enroll :global(.btn[disabled]) { opacity: 0.45; cursor: not-allowed; }
+  .enroll :global(.pill) { font: 600 0.75rem var(--body); padding: 0.35rem 0.75rem; border-radius: 999px; border: 1px solid transparent; cursor: pointer; }
+  .enroll :global(.pill-due) { background: #FBEDE6; color: #9B2C1F; border-color: #EBC9BC; }
+  .enroll :global(.pill-paid) { background: #E4F1DF; color: #2F6B2A; border-color: #C3DDB9; }
+  .enroll :global(.acts) { display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap; }
+  .enroll :global(.linkbtn) { background: none; border: 0; padding: 0; font: inherit; font-size: 0.85rem; color: var(--sage); text-decoration: underline; cursor: pointer; }
+  .enroll :global(.linkbtn.danger) { color: #9B2C1F; }
+  .enroll :global(.small) { font-size: 0.75rem; }
+  .enroll :global(.wl) { margin: 0; padding-left: 1.3rem; display: grid; gap: 0.3rem; font-size: 0.9rem; }
+  .enroll :global(.wl a) { color: var(--sage); }
+  .enroll :global(.msg-edit) { padding: 1rem 1.2rem; border: 1px dashed var(--line); border-radius: 10px; }
+  .enroll :global(.msg-edit summary) { cursor: pointer; font-weight: 600; color: var(--sage); }
+  .enroll :global(.msg-edit textarea) { width: 100%; margin: 0.6rem 0; font: 400 0.95rem/1.5 var(--body); padding: 0.7rem; border: 1px solid var(--line); border-radius: 6px; }
+  .enroll :global(.wl-title) { margin-top: 0.6rem; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--olive); }
   .bookings :global(ol) { margin: 0.3rem 0 0; padding-left: 1.3rem; display: grid; gap: 0.3rem; font-size: 0.9rem; }
   .bookings :global(a) { color: var(--sage); }
   .bookings :global(.muted) { color: var(--mist); font-size: 0.9rem; }
