@@ -10,7 +10,7 @@ export const TIERS = [
   { name: 'Beginner+',             min: 1.0, max: 1.99, blurb: 'You can keep a short rally going and your serve usually goes in.' },
   { name: 'Intermediate',          min: 2.0, max: 2.99, blurb: 'Steady rallies, you are starting to use the back glass and move with your partner.' },
   { name: 'Intermediate+',         min: 3.0, max: 3.99, blurb: 'You play the walls on purpose, volley well and build points with your partner.' },
-  { name: 'Intermediate Advanced', min: 4.0, max: 4.99, blurb: 'Controlled overheads, smart lobs, and you switch between defence and attack.' },
+  { name: 'Lower Advanced',        min: 4.0, max: 4.99, blurb: 'Controlled overheads, smart lobs, and you switch between defence and attack.' },
   { name: 'Advanced',              min: 5.0, max: 5.99, blurb: 'You attack with spin and win points on purpose. Earned on court.' },
   { name: 'Elite',                 min: 6.0, max: 7.0,  blurb: 'Tournament level. You can finish points from anywhere. Earned on court.' },
 ];
