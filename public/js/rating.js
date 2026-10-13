@@ -9,12 +9,43 @@ export const TIERS = [
   { name: 'Rally Maker',     min: 2.5, max: 3.99, blurb: 'You keep rallies going and serve reliably. The walls are next.' },
   { name: 'Wall Walker',     min: 4.0, max: 5.49, blurb: 'You use the back glass on purpose and hold your own at the net.' },
   { name: 'Bandeja Crafter', min: 5.5, max: 6.99, blurb: 'Controlled overheads, smart positioning, points built with your partner.' },
-  { name: 'Víbora',          min: 7.0, max: 8.49, blurb: 'You attack with spin and turn defence into attack. Earned on court.' },
-  { name: 'Por Tres',        min: 8.5, max: 10.0, blurb: 'Tournament level. You can smash the ball out of the court. Earned on court.' },
+  { name: 'The Víbora',      min: 7.0, max: 8.49, blurb: 'You attack with spin and turn defence into attack. A title earned on court.' },
+  { name: 'Por Tres',        min: 8.5, max: 10.0, blurb: 'Tournament level. You can smash the ball out of the court. A title earned on court.' },
 ];
 
-// The questionnaire can't place anyone above this. Higher levels are earned in games.
-export const SELF_RATING_CAP = 6.0;
+// The questionnaire can't place anyone above this. Players who give a Playtomic level
+// get a little more room. The top two titles (7.0+) are only earned in games.
+export const SELF_RATING_CAP = 5.0;
+export const PLAYTOMIC_CAP = 6.0;
+
+// ---------- Playtomic bridge ----------
+// Playtomic levels run 0-7. Ours run 1-10. Same idea of "level", different ruler.
+export const toPlaytomic = (r) => Math.max(0, Math.min(7, ((r - 1) * 7) / 9));
+export const fromPlaytomic = (p) => 1 + (p * 9) / 7;
+export const playtomicText = (r) => `≈ ${toPlaytomic(r).toFixed(1)} on Playtomic`;
+
+// ---------- How a rating is shown ----------
+export const show1 = (r) => Number(r).toFixed(1);   // players see one decimal
+export const CONFIDENCE = {
+  sessions: 5,          // sessions needed...
+  partners: 6,          // ...with this many different partners
+  restDays: 60,         // no session for this long: "Resting"
+};
+// status: 'provisional' | 'verified' (stored); shown as Calibrating / Court-Proven
+export function confidenceLabel(doc) {
+  if (!doc) return 'Calibrating';
+  const proven = doc.status === 'verified' || doc.ratingStatus === 'verified';
+  if (!proven) return 'Calibrating';
+  const last = doc.lastSessionAt;
+  if (typeof last === 'number' && Date.now() - last > CONFIDENCE.restDays * 864e5) return 'Court-Proven · Resting';
+  return 'Court-Proven';
+}
+// Form: one beat per recent session. ▲ beat expectation, ● on par, ▼ below.
+export function formBeat(share, expected) {
+  const d = share - expected;
+  return d > 0.02 ? 'up' : d < -0.02 ? 'down' : 'par';
+}
+export const FORM_SYMBOL = { up: '▲', par: '●', down: '▼' };
 
 // kind: 'bg' = background (30% of the score), 'skill' = on-court skill (70%).
 export const QUESTIONS = [
@@ -34,6 +65,8 @@ export const QUESTIONS = [
     a: ['I let it bounce', 'I try to smash, often out', 'I play a controlled bandeja', 'Bandeja and víbora with spin', 'I can smash the ball out of the court'] },
   { id: 'matches', kind: 'bg', q: 'What match experience do you have?',
     a: ['None yet', 'Friendly games only', 'Regular Americanos', 'Club tournaments', 'Ranked or federation tournaments'] },
+  { id: 'playtomic', kind: 'pt', q: 'Do you have a Playtomic level?',
+    a: ["No, I don't use Playtomic", 'Under 1.5', '1.5 to 2.4', '2.5 to 3.4', '3.5 to 4.4', '4.5 or higher'] },
 ];
 
 export function tierFor(rating) {
@@ -63,9 +96,14 @@ export function score(answers) {
   };
   // A slight curve so middle-of-the-road answers land around Wall Walker, not higher.
   const f = Math.pow(0.3 * avg('bg') + 0.7 * avg('skill'), 1.1);
-  const raw = SCALE_MIN + f * (SCALE_MAX - SCALE_MIN);
-  const rating = r2(Math.min(raw, SELF_RATING_CAP));
-  return { rating, tier: tierFor(rating).name, capped: raw > SELF_RATING_CAP };
+  let raw = SCALE_MIN + f * (SCALE_MAX - SCALE_MIN);
+  let cap = SELF_RATING_CAP;
+  // A Playtomic level is outside evidence: blend it in and allow a slightly higher start.
+  const PT_MID = [null, 1.0, 2.0, 3.0, 4.0, 4.8];
+  const pt = PT_MID[answers.playtomic ?? 0];
+  if (pt != null) { raw = (raw + fromPlaytomic(pt)) / 2; cap = PLAYTOMIC_CAP; }
+  const rating = r2(Math.min(raw, cap));
+  return { rating, tier: tierFor(rating).name, capped: raw > cap, playtomic: pt };
 }
 
 // ---------- Padel Culture Rating: session engine ----------
@@ -77,7 +115,6 @@ export const ENGINE = {
   spread: 4,                        // rating gap that makes a 10x favourite; 1.00 gap = 64% expected share
   k: (n) => (n < 5 ? 0.4 : n < 20 ? 0.2 : 0.12),
   cap: (n) => (n < 5 ? 0.5 : 0.3),
-  verifiedAfter: 5,                 // sessions
 };
 export function expectedShare(teamAvg, oppAvg) {
   return 1 / (1 + Math.pow(10, (oppAvg - teamAvg) / ENGINE.spread));
@@ -86,7 +123,7 @@ export function expectedShare(teamAvg, oppAvg) {
 // players: { [uid]: { rating, sessions, status } } (ratings on the 1-10 scale)
 export function computeSession(matches, players) {
   const out = {};
-  const row = (uid) => (out[uid] ||= { uid, before: players[uid].rating, sessions: players[uid].sessions || 0, prevStatus: players[uid].status || 'provisional', matches: 0, won: 0, played: 0, exp: 0, raw: 0 });
+  const row = (uid) => (out[uid] ||= { uid, before: players[uid].rating, sessions: players[uid].sessions || 0, prevStatus: players[uid].status || 'provisional', partnerSet: new Set(), matches: 0, won: 0, played: 0, exp: 0, raw: 0 });
   for (const m of matches) {
     const total = m.sa + m.sb;
     if (!total) continue;
@@ -96,6 +133,7 @@ export function computeSession(matches, players) {
     for (const [team, pts, e] of [[m.a, m.sa, eA], [m.b, m.sb, 1 - eA]]) {
       for (const uid of team) {
         const r = row(uid);
+        r.partnerSet.add(team[0] === uid ? team[1] : team[0]);
         r.matches++; r.won += pts; r.played += total; r.exp += e * total;
         r.raw += ENGINE.k(r.sessions) * (pts / total - e);
       }
@@ -108,7 +146,9 @@ export function computeSession(matches, players) {
     r.share = r.played ? r.won / r.played : 0;
     r.expShare = r.played ? r.exp / r.played : 0;
     r.tier = tierFor(r.after).name;
-    r.status = r.prevStatus === 'verified' || r.sessions + 1 >= ENGINE.verifiedAfter ? 'verified' : 'provisional';
+    r.partnersAfter = new Set([...(players[r.uid].partners || []), ...r.partnerSet]).size;
+    r.status = r.prevStatus === 'verified' || (r.sessions + 1 >= CONFIDENCE.sessions && r.partnersAfter >= CONFIDENCE.partners) ? 'verified' : 'provisional';
+    r.beat = formBeat(r.share, r.expShare);
   }
   return out;
 }

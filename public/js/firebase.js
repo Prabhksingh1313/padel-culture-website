@@ -139,11 +139,14 @@ export async function adminApplySession(results, session) {
   const ref = doc(collection(db, 'sessions'));
   const at = Date.now();
   for (const r of results) {
-    batch.set(doc(db, 'players', r.uid), {
+    const pdata = {
       rating: r.after, tier: r.tier, ratingStatus: r.status, scale: 10, sessions: increment(1), ratedAt: serverTimestamp(),
-      ratingHistory: arrayUnion({ r: r.after, s: r.status, at, by: 'session', sc: 10, d: r.delta, t: session.title }),
-    }, { merge: true });
-    batch.set(doc(db, 'leaderboard', r.uid), { name: r.name, rating: r.after, tier: r.tier, status: r.status, scale: 10, updatedAt: serverTimestamp() }, { merge: true });
+      lastSessionAt: at, form: r.form,
+      ratingHistory: arrayUnion({ r: r.after, s: r.status, at, by: 'session', sc: 10, d: r.delta, t: session.title, w: r.share, e: r.exp }),
+    };
+    if (r.partnersNew && r.partnersNew.length) pdata.partners = arrayUnion(...r.partnersNew);
+    batch.set(doc(db, 'players', r.uid), pdata, { merge: true });
+    batch.set(doc(db, 'leaderboard', r.uid), { name: r.name, rating: r.after, tier: r.tier, status: r.status, scale: 10, sessions: r.sessionsAfter, lastSessionAt: at, form: r.form, updatedAt: serverTimestamp() }, { merge: true });
   }
   batch.set(ref, { ...session, results: Object.fromEntries(results.map((r) => [r.uid, { before: r.before, after: r.after, delta: r.delta }])), createdAt: serverTimestamp() });
   await batch.commit();

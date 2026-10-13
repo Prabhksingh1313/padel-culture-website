@@ -121,10 +121,11 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
         <div class="rating-card" id="t-card" hidden>
           <span class="rc-label">Your Padel Culture Rating</span>
           <span class="rc-tier" id="t-tier"></span>
-          <span class="rc-row"><span class="rc-num" id="t-rating"></span><span class="badge" id="t-status">Provisional</span></span>
+          <span class="rc-row"><span class="rc-num" id="t-rating"></span><span class="badge" id="t-status">Calibrating</span></span>
+          <span class="rc-pt" id="t-pt"></span>
           <span class="rc-blurb" id="t-blurb"></span>
         </div>
-        <p class="muted" id="t-capnote" hidden>Víbora and Por Tres are earned on court. Play rated games with us to move up.</p>
+        <p class="muted" id="t-capnote" hidden>The questionnaire gives a starting point. Every session you play moves your rating, and The Víbora and Por Tres are titles only earned on court.</p>
         <p class="muted">Logged in as <strong id="t-done-phone"></strong>.</p>
         <a class="btn btn-solid" href="/#games">Book a game</a>
         <a class="btn btn-ghost" href="/leaderboard">See the leaderboard</a>
@@ -356,8 +357,9 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
       const first = me.name ? me.name.split(' ')[0] : '';
       $('t-welcome').textContent = first ? `You're in, ${first}` : "You're in";
       $('t-tier').textContent = t.name;
-      $('t-rating').textContent = R.fmt(rating);
-      $('t-status').textContent = status === 'verified' ? 'Verified' : 'Provisional';
+      $('t-rating').textContent = R.show1(rating);
+      $('t-pt').textContent = R.playtomicText(rating);
+      $('t-status').textContent = status === 'verified' ? 'Court-Proven' : 'Calibrating';
       $('t-blurb').textContent = t.blurb;
       $('t-card').hidden = false;
       $('t-capnote').hidden = !capped;
@@ -443,6 +445,7 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
   .rc-row { display: flex; align-items: center; gap: 0.8rem; }
   .rc-num { font-family: var(--display); font-size: 1.8rem; font-variant-numeric: lining-nums tabular-nums; }
   .rc-blurb { font-size: 0.9rem; color: var(--pine); }
+  .rc-pt { font-size: 0.8rem; color: var(--mist); }
   .badge { font-size: 0.65rem; letter-spacing: 0.16em; text-transform: uppercase; padding: 0.25rem 0.55rem; border-radius: 999px; border: 1px solid currentColor; }
   #s-done .btn { margin-top: 0.3rem; }
   @media (max-width: 820px) { .join-page { grid-template-columns: 1fr; } }

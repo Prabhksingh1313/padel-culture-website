@@ -5,12 +5,12 @@ import Footer from '../components/Footer.astro';
 import fb from '../data/firebase.json';
 
 const tiers = [
-  { name: 'First Serve', range: '1.00 – 2.49' },
-  { name: 'Rally Maker', range: '2.50 – 3.99' },
-  { name: 'Wall Walker', range: '4.00 – 5.49' },
-  { name: 'Bandeja Crafter', range: '5.50 – 6.99' },
-  { name: 'Víbora', range: '7.00 – 8.49' },
-  { name: 'Por Tres', range: '8.50 – 10.00' },
+  { name: 'First Serve', range: '1.0 – 2.4' },
+  { name: 'Rally Maker', range: '2.5 – 3.9' },
+  { name: 'Wall Walker', range: '4.0 – 5.4' },
+  { name: 'Bandeja Crafter', range: '5.5 – 6.9' },
+  { name: 'The Víbora', range: '7.0 – 8.4' },
+  { name: 'Por Tres', range: '8.5 – 10' },
 ];
 ---
 <Base title="Leaderboard | Padel Culture" description="Padel Culture Rating leaderboard for the West Delhi padel community.">
@@ -21,13 +21,14 @@ const tiers = [
       <div class="lb-intro">
         <p class="eyebrow">Padel Culture Rating</p>
         <h1>Leaderboard</h1>
-        <p>Ratings run from 1.00 to 10.00. Everyone starts with a provisional rating from a short questionnaire. Every session then moves it up or down, based on the share of points you win and the level of your partners and opponents. After 5 sessions your rating turns Verified.</p>
+        <p>The Padel Culture Rating runs from 1 to 10. A short questionnaire (and your Playtomic level, if you have one) sets where you start. After that, every session moves it, based on the points you win against what was expected from your partners' and opponents' levels. It's Calibrating until you've played 5 sessions with 6 different partners, then it's Court-Proven.</p>
         <p class="have" id="t-have">Already registered? <a href="/join?next=/leaderboard">Log in to see your rank</a></p>
       </div>
       <div class="me" id="t-me" hidden>
         <span class="rc-label">Your rating</span>
         <span class="rc-tier" id="t-me-tier"></span>
         <span class="rc-row"><span class="rc-num" id="t-me-rating"></span><span class="badge" id="t-me-status"></span></span>
+        <span class="rc-pt" id="t-me-pt"></span>
         <span class="rc-rank" id="t-me-rank"></span>
       </div>
       <a class="cta" id="t-cta" href="/join">
@@ -42,6 +43,7 @@ const tiers = [
         <h2 id="h-history">Your rating over time</h2>
         <p class="muted" id="t-history-read" aria-live="polite"></p>
       </div>
+      <div class="report" id="t-report" hidden></div>
       <div id="t-history-chart"></div>
       <p class="muted" id="t-history-note"></p>
       <details>
@@ -70,8 +72,8 @@ const tiers = [
 
     <div class="table-wrap">
       <table>
-        <thead><tr><th class="num">#</th><th>Player</th><th>Tier</th><th class="num">Rating</th><th>Status</th></tr></thead>
-        <tbody id="t-rows"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody>
+        <thead><tr><th class="num">#</th><th>Player</th><th>Level</th><th class="num">Rating</th><th>Form</th><th>Status</th></tr></thead>
+        <tbody id="t-rows"><tr><td colspan="6" class="muted">Loading…</td></tr></tbody>
       </table>
     </div>
   </main>
@@ -96,17 +98,18 @@ const tiers = [
             <td class="num">${r.rank}</td>
             <td>${esc(r.name)}${r.id === myId ? ' <span class="you-tag">You</span>' : ''}</td>
             <td><span class="chip">${esc(r.tier)}</span></td>
-            <td class="num">${Number(r.rating).toFixed(2)}</td>
-            <td><span class="status ${r.status === 'verified' ? 'ok' : ''}">${r.status === 'verified' ? 'Verified' : 'Provisional'}</span></td>
+            <td class="num">${R.show1(r.rating)}</td>
+            <td><span class="form">${(r.form || []).slice().reverse().map((b) => `<i class="f-${b}">${R.FORM_SYMBOL[b] || ''}</i>`).join('') || '<span class="muted">–</span>'}</span></td>
+            <td><span class="status ${r.status === 'verified' ? 'ok' : ''}">${R.confidenceLabel(r)}</span></td>
           </tr>`).join('')
-        : `<tr><td colspan="5" class="muted">${rows.length ? 'No players in this tier yet.' : 'No ratings yet. <a href="/join">Be the first to get rated.</a>'}</td></tr>`;
+        : `<tr><td colspan="6" class="muted">${rows.length ? 'No players in this tier yet.' : 'No ratings yet. <a href="/join">Be the first to get rated.</a>'}</td></tr>`;
     }
 
     // ----- Your rating over time (only the logged-in player sees their own) -----
     const R = await import('/js/rating.js');
     const tierName = (r) => R.tierFor(r).name;
     const dateText = (ms) => new Date(ms).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-    const pointText = (p) => `${p.r.toFixed(2)} · ${tierName(p.r)} · ${p.s === 'verified' ? 'Verified' : 'Provisional'} · ${dateText(p.at)} · ${p.by === 'organiser' ? 'set by an organiser' : p.by === 'session' ? `after ${p.t || 'a session'} (${p.d >= 0 ? '+' : ''}${Number(p.d || 0).toFixed(2)})` : 'from the questionnaire'}`;
+    const pointText = (p) => `${R.show1(p.r)} · ${tierName(p.r)} · ${p.s === 'verified' ? 'Court-Proven' : 'Calibrating'} · ${dateText(p.at)} · ${p.by === 'organiser' ? 'set by an organiser' : p.by === 'session' ? `after ${p.t || 'a session'} (${p.d >= 0 ? '+' : ''}${Number(p.d || 0).toFixed(2)})` : 'from the questionnaire'}`;
 
     function drawHistory(player) {
       let pts = Array.isArray(player.ratingHistory) ? player.ratingHistory.filter((p) => typeof p.r === 'number' && typeof p.at === 'number').map((p) => ({ ...p, r: R.normPoint(p) })) : [];
@@ -143,8 +146,17 @@ const tiers = [
       const change = pts[pts.length - 1].r - pts[0].r;
       $('t-history-note').textContent = pts.length === 1
         ? 'This is your starting rating. A new point is added every time your rating changes after a game.'
-        : `${change === 0 ? 'No change' : (change > 0 ? 'Up ' : 'Down ') + Math.abs(change).toFixed(2)} since ${dateText(t0)}, over ${pts.length} updates. Hover or tap a point for details.`;
-      $('t-history-rows').innerHTML = pts.slice().reverse().map((p) => `<tr><td>${dateText(p.at)}</td><td class="num">${p.r.toFixed(2)}</td><td>${esc(tierName(p.r))}</td><td>${p.s === 'verified' ? 'Verified' : 'Provisional'}</td><td>${p.by === 'organiser' ? 'Organiser' : p.by === 'session' ? esc(p.t || 'Session') : 'Questionnaire'}</td></tr>`).join('');
+        : `${change === 0 ? 'No change' : (change > 0 ? 'Up ' : 'Down ') + Math.abs(change).toFixed(1)} since ${dateText(t0)}, over ${pts.length} updates. Hover or tap a point for details.`;
+      $('t-history-rows').innerHTML = pts.slice().reverse().map((p) => `<tr><td>${dateText(p.at)}</td><td class="num">${R.show1(p.r)}</td><td>${esc(tierName(p.r))}</td><td>${p.s === 'verified' ? 'Court-Proven' : 'Calibrating'}</td><td>${p.by === 'organiser' ? 'Organiser' : p.by === 'session' ? esc(p.t || 'Session') : 'Questionnaire'}</td></tr>`).join('');
+      const lastS = pts.slice().reverse().find((p) => p.by === 'session' && typeof p.w === 'number');
+      if (lastS) {
+        const pc = (x) => Math.round(x * 100) + '%';
+        const d = Number(lastS.d || 0);
+        $('t-report').innerHTML = `<span class="rep-label">Match report · ${esc(lastS.t || 'Last session')} · ${dateText(lastS.at)}</span>
+          <span class="rep-line">You won <strong>${pc(lastS.w)}</strong> of your points. With your partners and opponents, <strong>${pc(lastS.e)}</strong> was expected.</span>
+          <span class="rep-delta ${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d).toFixed(2)}</span>`;
+        $('t-report').hidden = false;
+      } else $('t-report').hidden = true;
       $('s-history').hidden = false;
     }
 
@@ -177,8 +189,9 @@ const tiers = [
           $('t-have').hidden = Boolean(user);
           if (mine) {
             $('t-me-tier').textContent = mine.tier;
-            $('t-me-rating').textContent = Number(mine.rating).toFixed(2);
-            $('t-me-status').textContent = mine.status === 'verified' ? 'Verified' : 'Provisional';
+            $('t-me-rating').textContent = R.show1(mine.rating);
+            $('t-me-pt').textContent = R.playtomicText(mine.rating);
+            $('t-me-status').textContent = R.confidenceLabel(mine);
             $('t-me-rank').textContent = `Ranked #${mine.rank} of ${rows.length}`;
           }
           render();
@@ -187,7 +200,7 @@ const tiers = [
         });
       } catch (e) {
         console.error(e);
-        $('t-rows').innerHTML = `<tr><td colspan="5" class="muted">Couldn't load the leaderboard. Refresh to try again. (${esc(e.code || 'error')})</td></tr>`;
+        $('t-rows').innerHTML = `<tr><td colspan="6" class="muted">Couldn't load the leaderboard. Refresh to try again. (${esc(e.code || 'error')})</td></tr>`;
       }
     }
     load();
@@ -196,6 +209,18 @@ const tiers = [
 
 <style>
   .lb { display: grid; gap: 2rem; padding-block: clamp(2.5rem, 7vw, 5rem); }
+  .report { display: grid; grid-template-columns: 1fr auto; gap: 0.3rem 1rem; align-items: center; padding: 1rem 1.2rem; background: #fff; border: 1px solid var(--line); border-left: 3px solid var(--olive); border-radius: 10px; }
+  .report[hidden] { display: none; }
+  .report :global(.rep-label) { grid-column: 1 / -1; font-size: 0.7rem; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: var(--olive); }
+  .report :global(.rep-line) { color: var(--mist); font-size: 0.92rem; }
+  .report :global(.rep-delta) { font-family: var(--display); font-size: 1.8rem; color: var(--chalk); }
+  .report :global(.rep-delta.up) { color: #2F6B2A; }
+  .report :global(.rep-delta.down) { color: #9B2C1F; }
+  .rc-pt { font-size: 0.8rem; color: var(--mist); }
+  .table-wrap :global(.form) { display: inline-flex; gap: 0.2rem; font-size: 0.75rem; }
+  .table-wrap :global(.f-up) { color: #2F6B2A; font-style: normal; }
+  .table-wrap :global(.f-down) { color: #9B2C1F; font-style: normal; }
+  .table-wrap :global(.f-par) { color: var(--mist); font-style: normal; }
   .history { display: grid; gap: 0.8rem; padding: 1.4rem; border: 1px solid var(--line); border-radius: 8px; background: var(--pine); }
   .history-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0.5rem 1.5rem; }
   .history h2 { font-size: 1.8rem; }
