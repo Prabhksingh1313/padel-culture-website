@@ -122,10 +122,9 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
           <span class="rc-label">Your Padel Culture Rating</span>
           <span class="rc-tier" id="t-tier"></span>
           <span class="rc-row"><span class="rc-num" id="t-rating"></span><span class="badge" id="t-status">Calibrating</span></span>
-          <span class="rc-pt" id="t-pt"></span>
           <span class="rc-blurb" id="t-blurb"></span>
         </div>
-        <p class="muted" id="t-capnote" hidden>The questionnaire gives a starting point. Every session you play moves your rating, and The Víbora and Por Tres are titles only earned on court.</p>
+        <p class="muted" id="t-capnote" hidden>The questionnaire gives a starting point. Every session you play moves your rating, and Advanced and Elite are only earned on court.</p>
         <p class="muted">Logged in as <strong id="t-done-phone"></strong>.</p>
         <a class="btn btn-solid" href="/#games">Book a game</a>
         <a class="btn btn-ghost" href="/leaderboard">See the leaderboard</a>
@@ -356,9 +355,8 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
       const t = R.TIERS.find((x) => x.name === tierName) || R.tierFor(rating);
       const first = me.name ? me.name.split(' ')[0] : '';
       $('t-welcome').textContent = first ? `You're in, ${first}` : "You're in";
-      $('t-tier').textContent = t.name;
+      $('t-tier').textContent = R.levelWithRange(t);
       $('t-rating').textContent = R.show1(rating);
-      $('t-pt').textContent = R.playtomicText(rating);
       $('t-status').textContent = status === 'verified' ? 'Court-Proven' : 'Calibrating';
       $('t-blurb').textContent = t.blurb;
       $('t-card').hidden = false;

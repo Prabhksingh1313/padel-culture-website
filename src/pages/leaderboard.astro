@@ -5,12 +5,13 @@ import Footer from '../components/Footer.astro';
 import fb from '../data/firebase.json';
 
 const tiers = [
-  { name: 'First Serve', range: '1.0 – 2.4' },
-  { name: 'Rally Maker', range: '2.5 – 3.9' },
-  { name: 'Wall Walker', range: '4.0 – 5.4' },
-  { name: 'Bandeja Crafter', range: '5.5 – 6.9' },
-  { name: 'The Víbora', range: '7.0 – 8.4' },
-  { name: 'Por Tres', range: '8.5 – 10' },
+  { name: 'Beginner', range: '0.0–0.9' },
+  { name: 'Beginner+', range: '1.0–1.9' },
+  { name: 'Intermediate', range: '2.0–2.9' },
+  { name: 'Intermediate+', range: '3.0–3.9' },
+  { name: 'Intermediate Advanced', range: '4.0–4.9' },
+  { name: 'Advanced', range: '5.0–5.9' },
+  { name: 'Elite', range: '6.0–7.0' },
 ];
 ---
 <Base title="Leaderboard | Padel Culture" description="Padel Culture Rating leaderboard for the West Delhi padel community.">
@@ -21,14 +22,13 @@ const tiers = [
       <div class="lb-intro">
         <p class="eyebrow">Padel Culture Rating</p>
         <h1>Leaderboard</h1>
-        <p>The Padel Culture Rating runs from 1 to 10. A short questionnaire (and your Playtomic level, if you have one) sets where you start. After that, every session moves it, based on the points you win against what was expected from your partners' and opponents' levels. It's Calibrating until you've played 5 sessions with 6 different partners, then it's Court-Proven.</p>
+        <p>The Padel Culture Rating runs from 0 to 7, the same range as Playtomic, so your Playtomic level means something here too. A short questionnaire (or your Playtomic level) sets where you start. After that, every session moves it, based on the points you win against what was expected from your partners' and opponents' levels. It's Calibrating until you've played 5 sessions with 6 different partners, then it's Court-Proven.</p>
         <p class="have" id="t-have">Already registered? <a href="/join?next=/leaderboard">Log in to see your rank</a></p>
       </div>
       <div class="me" id="t-me" hidden>
         <span class="rc-label">Your rating</span>
         <span class="rc-tier" id="t-me-tier"></span>
         <span class="rc-row"><span class="rc-num" id="t-me-rating"></span><span class="badge" id="t-me-status"></span></span>
-        <span class="rc-pt" id="t-me-pt"></span>
         <span class="rc-rank" id="t-me-rank"></span>
       </div>
       <a class="cta" id="t-cta" href="/join">
@@ -58,7 +58,7 @@ const tiers = [
           <button type="button" class="tier" data-tier={t.name} aria-pressed="false">
             <span class="tier-step">{i + 1}</span>
             <span class="tier-name">{t.name}</span>
-            <span class="tier-range">{t.range}</span>
+            <span class="tier-range">({t.range})</span>
             <span class="tier-count" data-count={t.name}>0 players</span>
           </button>
         </li>
@@ -121,8 +121,8 @@ const tiers = [
       pts = pts.slice().sort((a, b) => a.at - b.at);
       const W = 640, H = 220, L = 34, R = 52, T = 14, B = 30;
       const rs = pts.map((p) => p.r);
-      let lo = Math.max(1, Math.floor(Math.min(...rs) - 0.5)), hi = Math.min(10, Math.ceil(Math.max(...rs) + 0.5));
-      if (hi - lo < 2) { if (hi < 10) hi = Math.min(10, lo + 2); else lo = hi - 2; }
+      let lo = Math.max(0, Math.floor(Math.min(...rs) - 0.5)), hi = Math.min(7, Math.ceil(Math.max(...rs) + 0.5));
+      if (hi - lo < 2) { if (hi < 7) hi = Math.min(7, lo + 2); else lo = hi - 2; }
       const t0 = pts[0].at, t1 = pts[pts.length - 1].at;
       const x = (p, i) => (t1 === t0 ? (pts.length === 1 ? (L + W - R) / 2 : L + (i / (pts.length - 1)) * (W - L - R)) : L + ((p.at - t0) / (t1 - t0)) * (W - L - R));
       const y = (r) => T + (1 - (r - lo) / (hi - lo)) * (H - T - B);
@@ -188,9 +188,8 @@ const tiers = [
           $('t-cta').hidden = Boolean(mine);
           $('t-have').hidden = Boolean(user);
           if (mine) {
-            $('t-me-tier').textContent = mine.tier;
+            $('t-me-tier').textContent = R.levelWithRange(R.tierFor(mine.rating));
             $('t-me-rating').textContent = R.show1(mine.rating);
-            $('t-me-pt').textContent = R.playtomicText(mine.rating);
             $('t-me-status').textContent = R.confidenceLabel(mine);
             $('t-me-rank').textContent = `Ranked #${mine.rank} of ${rows.length}`;
           }
@@ -242,7 +241,7 @@ const tiers = [
   .rc-rank, .cta-sub { font-size: 0.85rem; color: var(--pine); }
   .badge { font-size: 0.65rem; letter-spacing: 0.16em; text-transform: uppercase; padding: 0.25rem 0.55rem; border-radius: 999px; border: 1px solid currentColor; }
 
-  .ladder { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0.5rem; }
+  .ladder { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0.5rem; }
   .tier {
     width: 100%; height: 100%; display: grid; gap: 0.2rem; text-align: left; cursor: pointer;
     padding: 0.9rem; border-radius: 8px; border: 1px solid var(--line); background: var(--pine); color: var(--chalk);
@@ -256,7 +255,7 @@ const tiers = [
   .tier-name { font-family: var(--display); font-size: 1.35rem; line-height: 1.1; }
   .tier-range { font-size: 0.75rem; font-variant-numeric: tabular-nums; opacity: 0.8; }
   .tier-count { font-size: 0.72rem; opacity: 0.75; }
-  @media (max-width: 900px) { .ladder { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (max-width: 1000px) { .ladder { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
   @media (max-width: 760px) { .lb-head { grid-template-columns: 1fr; } }
   @media (max-width: 480px) { .ladder { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 

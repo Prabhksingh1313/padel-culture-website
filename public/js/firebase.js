@@ -111,25 +111,25 @@ export async function saveRating(user, name, result, answers) {
     rating: result.rating,
     tier: result.tier,
     ratingStatus: 'provisional',
-    scale: 10,
+    scale: 7,
     answers,
     ratedAt: serverTimestamp(),
-    ratingHistory: arrayUnion({ r: result.rating, s: 'provisional', at: Date.now(), by: 'questionnaire', sc: 10 }),
+    ratingHistory: arrayUnion({ r: result.rating, s: 'provisional', at: Date.now(), by: 'questionnaire', sc: 7 }),
   }, { merge: true });
   await setDoc(doc(db, 'leaderboard', user.uid), {
     name,
     rating: result.rating,
     tier: result.tier,
     status: 'provisional',
-    scale: 10,
+    scale: 7,
     updatedAt: serverTimestamp(),
   });
 }
 
 // Organisers only: set a player's rating and publish it to the leaderboard.
 export async function adminSetRating(uid, publicName, rating, tier, status) {
-  await setDoc(doc(db, 'players', uid), { rating, tier, ratingStatus: status, scale: 10, ratedAt: serverTimestamp(), ratingHistory: arrayUnion({ r: rating, s: status, at: Date.now(), by: 'organiser', sc: 10 }) }, { merge: true });
-  await setDoc(doc(db, 'leaderboard', uid), { name: publicName, rating, tier, status, scale: 10, updatedAt: serverTimestamp() }, { merge: true });
+  await setDoc(doc(db, 'players', uid), { rating, tier, ratingStatus: status, scale: 7, ratedAt: serverTimestamp(), ratingHistory: arrayUnion({ r: rating, s: status, at: Date.now(), by: 'organiser', sc: 7 }) }, { merge: true });
+  await setDoc(doc(db, 'leaderboard', uid), { name: publicName, rating, tier, status, scale: 7, updatedAt: serverTimestamp() }, { merge: true });
 }
 
 // Organisers only: apply one session's results to every player in it, in one batch.
@@ -140,13 +140,13 @@ export async function adminApplySession(results, session) {
   const at = Date.now();
   for (const r of results) {
     const pdata = {
-      rating: r.after, tier: r.tier, ratingStatus: r.status, scale: 10, sessions: increment(1), ratedAt: serverTimestamp(),
+      rating: r.after, tier: r.tier, ratingStatus: r.status, scale: 7, sessions: increment(1), ratedAt: serverTimestamp(),
       lastSessionAt: at, form: r.form,
-      ratingHistory: arrayUnion({ r: r.after, s: r.status, at, by: 'session', sc: 10, d: r.delta, t: session.title, w: r.share, e: r.exp }),
+      ratingHistory: arrayUnion({ r: r.after, s: r.status, at, by: 'session', sc: 7, d: r.delta, t: session.title, w: r.share, e: r.exp }),
     };
     if (r.partnersNew && r.partnersNew.length) pdata.partners = arrayUnion(...r.partnersNew);
     batch.set(doc(db, 'players', r.uid), pdata, { merge: true });
-    batch.set(doc(db, 'leaderboard', r.uid), { name: r.name, rating: r.after, tier: r.tier, status: r.status, scale: 10, sessions: r.sessionsAfter, lastSessionAt: at, form: r.form, updatedAt: serverTimestamp() }, { merge: true });
+    batch.set(doc(db, 'leaderboard', r.uid), { name: r.name, rating: r.after, tier: r.tier, status: r.status, scale: 7, sessions: r.sessionsAfter, lastSessionAt: at, form: r.form, updatedAt: serverTimestamp() }, { merge: true });
   }
   batch.set(ref, { ...session, results: Object.fromEntries(results.map((r) => [r.uid, { before: r.before, after: r.after, delta: r.delta }])), createdAt: serverTimestamp() });
   await batch.commit();
@@ -158,12 +158,12 @@ export async function listSessions() {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
-// Organisers only: rewrite ratings saved on the old 0-7 scale onto 1-10.
+// Organisers only: rewrite ratings saved during the 1-10 trial back onto 0-7.
 export async function adminConvertScale(players, leaderboard, conv) {
   const batch = writeBatch(db);
   let n = 0;
-  for (const p of players) if (typeof p.rating === 'number' && p.scale !== 10) { batch.set(doc(db, 'players', p.id), { ...conv(p), scale: 10 }, { merge: true }); n++; }
-  for (const l of leaderboard) if (typeof l.rating === 'number' && l.scale !== 10) { batch.set(doc(db, 'leaderboard', l.id), { ...conv(l), scale: 10 }, { merge: true }); n++; }
+  for (const p of players) if (typeof p.rating === 'number' && p.scale === 10) { batch.set(doc(db, 'players', p.id), { ...conv(p), scale: 7 }, { merge: true }); n++; }
+  for (const l of leaderboard) if (typeof l.rating === 'number' && l.scale === 10) { batch.set(doc(db, 'leaderboard', l.id), { ...conv(l), scale: 7 }, { merge: true }); n++; }
   if (n) await batch.commit();
   return n;
 }

@@ -1,28 +1,32 @@
 // Padel Culture Rating (PCR): questionnaire, scoring and tiers.
 // Starter version. Edit QUESTIONS and TIERS here to change the questionnaire.
 
-// Scale: 1.00 to 10.00. Older ratings were saved on a 0-7 scale; normRating() converts them.
-export const SCALE_MIN = 1;
-export const SCALE_MAX = 10;
+// Scale: 0.0 to 7.0. Ratings saved during the short-lived 1-10 trial carry `scale: 10`
+// and are converted back by normRating().
+export const SCALE_MIN = 0;
+export const SCALE_MAX = 7;
 export const TIERS = [
-  { name: 'First Serve',     min: 1.0, max: 2.49, blurb: 'New to padel and learning the basics. Every great player started here.' },
-  { name: 'Rally Maker',     min: 2.5, max: 3.99, blurb: 'You keep rallies going and serve reliably. The walls are next.' },
-  { name: 'Wall Walker',     min: 4.0, max: 5.49, blurb: 'You use the back glass on purpose and hold your own at the net.' },
-  { name: 'Bandeja Crafter', min: 5.5, max: 6.99, blurb: 'Controlled overheads, smart positioning, points built with your partner.' },
-  { name: 'The Víbora',      min: 7.0, max: 8.49, blurb: 'You attack with spin and turn defence into attack. A title earned on court.' },
-  { name: 'Por Tres',        min: 8.5, max: 10.0, blurb: 'Tournament level. You can smash the ball out of the court. A title earned on court.' },
+  { name: 'Beginner',              min: 0.0, max: 0.99, blurb: 'New to padel and learning the basics. Every great player started here.' },
+  { name: 'Beginner+',             min: 1.0, max: 1.99, blurb: 'You can keep a short rally going and your serve usually goes in.' },
+  { name: 'Intermediate',          min: 2.0, max: 2.99, blurb: 'Steady rallies, you are starting to use the back glass and move with your partner.' },
+  { name: 'Intermediate+',         min: 3.0, max: 3.99, blurb: 'You play the walls on purpose, volley well and build points with your partner.' },
+  { name: 'Intermediate Advanced', min: 4.0, max: 4.99, blurb: 'Controlled overheads, smart lobs, and you switch between defence and attack.' },
+  { name: 'Advanced',              min: 5.0, max: 5.99, blurb: 'You attack with spin and win points on purpose. Earned on court.' },
+  { name: 'Elite',                 min: 6.0, max: 7.0,  blurb: 'Tournament level. You can finish points from anywhere. Earned on court.' },
 ];
+// Level with its range in brackets, e.g. "Beginner+ (1.0–1.9)".
+export const rangeText = (t) => `${t.min.toFixed(1)}–${t.name === 'Elite' ? '7.0' : (Math.floor(t.max * 10) / 10).toFixed(1)}`;
+export const levelWithRange = (t) => `${t.name} (${rangeText(t)})`;
 
 // The questionnaire can't place anyone above this. Players who give a Playtomic level
-// get a little more room. The top two titles (7.0+) are only earned in games.
-export const SELF_RATING_CAP = 5.0;
-export const PLAYTOMIC_CAP = 6.0;
+// get a little more room. Advanced and Elite are only earned in games.
+export const SELF_RATING_CAP = 3.5;
+export const PLAYTOMIC_CAP = 4.5;
+export const START_RATING = 2.0;   // players entered in a session without a rating
 
-// ---------- Playtomic bridge ----------
-// Playtomic levels run 0-7. Ours run 1-10. Same idea of "level", different ruler.
-export const toPlaytomic = (r) => Math.max(0, Math.min(7, ((r - 1) * 7) / 9));
-export const fromPlaytomic = (p) => 1 + (p * 9) / 7;
-export const playtomicText = (r) => `≈ ${toPlaytomic(r).toFixed(1)} on Playtomic`;
+// ---------- Playtomic ----------
+// Same 0-7 range as Playtomic, so a Playtomic level can be used directly as a starting point.
+export const playtomicText = () => '';
 
 // ---------- How a rating is shown ----------
 export const show1 = (r) => Number(r).toFixed(1);   // players see one decimal
@@ -79,13 +83,12 @@ export const fmt = (r) => Number(r).toFixed(2);
 const r2 = (x) => Math.round(x * 100) / 100;
 const clamp = (x) => Math.min(SCALE_MAX, Math.max(SCALE_MIN, x));
 
-// Ratings saved before the 1-10 scale (no `scale: 10` marker) were on 0-7.
 export function normRating(doc) {
   if (!doc || typeof doc.rating !== 'number') return null;
-  return doc.scale === 10 ? doc.rating : r2(clamp(1 + (doc.rating * 9) / 7));
+  return doc.scale === 10 ? r2(clamp(((doc.rating - 1) * 7) / 9)) : r2(clamp(doc.rating));
 }
 export function normPoint(p) {
-  return p.sc === 10 ? p.r : r2(clamp(1 + (p.r * 9) / 7));
+  return p.sc === 10 ? r2(clamp(((p.r - 1) * 7) / 9)) : r2(clamp(p.r));
 }
 
 // answers: { [questionId]: 0..4 }
@@ -94,14 +97,14 @@ export function score(answers) {
     const qs = QUESTIONS.filter((q) => q.kind === kind);
     return qs.reduce((s, q) => s + (answers[q.id] ?? 0), 0) / (qs.length * 4);
   };
-  // A slight curve so middle-of-the-road answers land around Wall Walker, not higher.
+  // A slight curve so middle-of-the-road answers land around Intermediate, not higher.
   const f = Math.pow(0.3 * avg('bg') + 0.7 * avg('skill'), 1.1);
   let raw = SCALE_MIN + f * (SCALE_MAX - SCALE_MIN);
   let cap = SELF_RATING_CAP;
   // A Playtomic level is outside evidence: blend it in and allow a slightly higher start.
   const PT_MID = [null, 1.0, 2.0, 3.0, 4.0, 4.8];
   const pt = PT_MID[answers.playtomic ?? 0];
-  if (pt != null) { raw = (raw + fromPlaytomic(pt)) / 2; cap = PLAYTOMIC_CAP; }
+  if (pt != null) { raw = (raw + pt) / 2; cap = PLAYTOMIC_CAP; }
   const rating = r2(Math.min(raw, cap));
   return { rating, tier: tierFor(rating).name, capped: raw > cap, playtomic: pt };
 }
@@ -112,15 +115,15 @@ export function score(answers) {
 // After the session, each player's rating moves by K x (actual share - expected share),
 // summed over their matches. New players move faster; the change per session is capped.
 export const ENGINE = {
-  spread: 4,                        // rating gap that makes a 10x favourite; 1.00 gap = 64% expected share
-  k: (n) => (n < 5 ? 0.4 : n < 20 ? 0.2 : 0.12),
-  cap: (n) => (n < 5 ? 0.5 : 0.3),
+  spread: 3.1,                      // 1.0 rating gap = about 68% expected share of points
+  k: (n) => (n < 5 ? 0.32 : n < 20 ? 0.16 : 0.1),
+  cap: (n) => (n < 5 ? 0.4 : 0.25),
 };
 export function expectedShare(teamAvg, oppAvg) {
   return 1 / (1 + Math.pow(10, (oppAvg - teamAvg) / ENGINE.spread));
 }
 // matches: [{ a: [uid, uid], b: [uid, uid], sa: points, sb: points }]
-// players: { [uid]: { rating, sessions, status } } (ratings on the 1-10 scale)
+// players: { [uid]: { rating, sessions, status, partners } } (ratings on the 0-7 scale)
 export function computeSession(matches, players) {
   const out = {};
   const row = (uid) => (out[uid] ||= { uid, before: players[uid].rating, sessions: players[uid].sessions || 0, prevStatus: players[uid].status || 'provisional', partnerSet: new Set(), matches: 0, won: 0, played: 0, exp: 0, raw: 0 });

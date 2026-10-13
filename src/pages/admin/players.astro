@@ -92,7 +92,7 @@ const games = (await getCollection('games')).map((g) => ({
 
       <div class="tabpanel" id="tab-scores" hidden>
         <h1>Scores &amp; ratings</h1>
-        <p class="muted how">Enter every match from a session. For each match, the team's expected share of points comes from all four players' ratings. Beat that share and your rating goes up; fall short and it goes down. New players move faster, the change per session is capped, and ratings turn Court-Proven after 5 sessions with at least 6 different partners. Players without a rating start at 4.00.</p>
+        <p class="muted how">Enter every match from a session. For each match, the team's expected share of points comes from all four players' ratings. Beat that share and your rating goes up; fall short and it goes down. New players move faster, the change per session is capped, and ratings turn Court-Proven after 5 sessions with at least 6 different partners. Players without a rating start at 2.00.</p>
         <div class="sess">
           <label>Session<select id="sc-game"></select></label>
           <label>Name<input id="sc-title" placeholder="e.g. Thursday Night Americano" /></label>
@@ -147,7 +147,7 @@ const games = (await getCollection('games')).map((g) => ({
     function ratingCell(p) {
       const rated = typeof p.rating === 'number';
       if (editing === p.id) {
-        return `<input id="e-rating" type="number" min="1" max="10" step="0.01" value="${rated ? p.rating : ''}" aria-label="Rating, 1 to 10" />
+        return `<input id="e-rating" type="number" min="0" max="7" step="0.01" value="${rated ? p.rating : ''}" aria-label="Rating, 0 to 7" />
           <select id="e-status" aria-label="Status"><option value="verified"${p.ratingStatus === 'verified' ? ' selected' : ''}>Court-Proven</option><option value="provisional"${p.ratingStatus === 'verified' ? '' : ' selected'}>Calibrating</option></select>
           <button class="linkbtn" type="button" data-save="${esc(p.id)}">Save</button> <button class="linkbtn" type="button" data-cancel="1">Cancel</button>`;
       }
@@ -196,17 +196,17 @@ const games = (await getCollection('games')).map((g) => ({
       }
       try {
         players = await fb.listPlayers();
-        const old = players.filter((x) => typeof x.rating === 'number' && x.scale !== 10).length;
+        const old = players.filter((x) => typeof x.rating === 'number' && x.scale === 10).length;
         players.forEach((x) => { if (typeof x.rating === 'number') { x.rating = R.normRating(x); x.tier = tierFor(x.rating).name; } });
         if (old) {
-          $('t-scale').innerHTML = `${old} rating${old === 1 ? ' is' : 's are'} saved on the old 0–7 scale. They're shown converted to 1–10 here and on the leaderboard. <button type="button" class="linkbtn" id="b-convert">Save the converted ratings</button>`;
+          $('t-scale').innerHTML = `${old} rating${old === 1 ? ' is' : 's are'} saved on the 1–10 trial scale. They're shown converted back to 0–7 here and on the leaderboard. <button type="button" class="linkbtn" id="b-convert">Save the converted ratings</button>`;
           $('t-scale').hidden = false;
           $('b-convert').addEventListener('click', async (e) => {
             e.target.disabled = true;
             try {
               const conv = (d) => { const r = R.normRating(d); return { rating: r, tier: tierFor(r).name }; };
               const n = await fb.adminConvertScale(await fb.listPlayers(), await fb.listLeaderboard(), conv);
-              $('t-scale').textContent = `Done: ${n} records converted to the 1–10 scale.`;
+              $('t-scale').textContent = `Done: ${n} records converted back to the 0–7 scale.`;
             } catch (ex) { console.error(ex); $('t-scale').textContent = `Couldn't convert. (${(ex && ex.code) || 'unknown'})`; }
           });
         }
@@ -280,7 +280,7 @@ const games = (await getCollection('games')).map((g) => ({
     }));
 
     // ---------- Scores & ratings ----------
-    const START = 4;
+    const START = R.START_RATING;
     let lastPreview = null;
     function playerOptions(sel) {
       const opts = players.slice().sort((a, b) => String(a.name).localeCompare(String(b.name)))
@@ -349,7 +349,7 @@ const games = (await getCollection('games')).map((g) => ({
       const pct = (x) => Math.round(x * 100) + '%';
       $('sc-rows').innerHTML = list.map((r) => {
         const x = byId[r.uid];
-        return `<tr><td>${esc(x.name)}${input[r.uid].unrated ? ' <span class="muted">(new, from 4.00)</span>' : ''}</td><td class="num">${r.matches}</td><td class="num">${r.won}/${r.played}</td><td class="num">${pct(r.share)}</td><td class="num">${pct(r.expShare)}</td><td class="num ${r.delta > 0 ? 'up' : r.delta < 0 ? 'down' : ''}">${r.delta > 0 ? '+' : ''}${r.delta.toFixed(2)}</td><td class="num">${r.before.toFixed(2)} → <strong>${r.after.toFixed(2)}</strong></td><td>${esc(r.tier)} · ${r.status === 'verified' ? 'Court-Proven' : 'Calibrating'} <span class="muted">${R.FORM_SYMBOL[r.beat]}</span></td></tr>`;
+        return `<tr><td>${esc(x.name)}${input[r.uid].unrated ? ' <span class="muted">(new, from 2.00)</span>' : ''}</td><td class="num">${r.matches}</td><td class="num">${r.won}/${r.played}</td><td class="num">${pct(r.share)}</td><td class="num">${pct(r.expShare)}</td><td class="num ${r.delta > 0 ? 'up' : r.delta < 0 ? 'down' : ''}">${r.delta > 0 ? '+' : ''}${r.delta.toFixed(2)}</td><td class="num">${r.before.toFixed(2)} → <strong>${r.after.toFixed(2)}</strong></td><td>${esc(r.tier)} · ${r.status === 'verified' ? 'Court-Proven' : 'Calibrating'} <span class="muted">${R.FORM_SYMBOL[r.beat]}</span></td></tr>`;
       }).join('');
       lastPreview = { matches, list };
       $('sc-out').hidden = false;
@@ -416,7 +416,7 @@ const games = (await getCollection('games')).map((g) => ({
       if (t.dataset.save) {
         const p = players.find((x) => x.id === t.dataset.save);
         const v = parseFloat($('e-rating').value);
-        if (!p || !(v >= 1 && v <= 10)) return note('Enter a rating between 1.00 and 10.00.');
+        if (!p || !(v >= 0 && v <= 7)) return note('Enter a rating between 0 and 7.');
         const status = $('e-status').value;
         t.disabled = true;
         try {
@@ -460,7 +460,7 @@ const games = (await getCollection('games')).map((g) => ({
         const p = mobile.length === 10 && players.find((x) => last10(x.phone) === mobile);
         if (!p) { unknown.push(r[iMobile] || '(blank)'); continue; }
         const v = parseFloat(raw);
-        if (!(v >= 1 && v <= 10)) { bad.push(p.name); continue; }
+        if (!(v >= 0 && v <= 7)) { bad.push(p.name); continue; }
         const s = iStatus >= 0 ? String(r[iStatus] ?? '').trim().toLowerCase() : '';
         const status = (s.startsWith('verif') || s.startsWith('court')) ? 'verified' : (s.startsWith('prov') || s.startsWith('calib')) ? 'provisional' : (p.ratingStatus || 'provisional');
         if (typeof p.rating === 'number' && Math.abs(p.rating - v) < 0.005 && (p.ratingStatus || 'provisional') === status) { same++; continue; }
@@ -471,7 +471,7 @@ const games = (await getCollection('games')).map((g) => ({
         `${updated} rating${updated === 1 ? '' : 's'} updated and published to the leaderboard.`,
         same ? `${same} unchanged.` : '',
         unknown.length ? `${unknown.length} mobile number${unknown.length === 1 ? '' : 's'} not found: ${unknown.slice(0, 5).join(', ')}${unknown.length > 5 ? '…' : ''}.` : '',
-        bad.length ? `Rating not between 1 and 10 for: ${bad.slice(0, 5).join(', ')}${bad.length > 5 ? '…' : ''}.` : '',
+        bad.length ? `Rating not between 0 and 7 for: ${bad.slice(0, 5).join(', ')}${bad.length > 5 ? '…' : ''}.` : '',
         failed ? `${failed} couldn't be saved.` : '',
       ].filter(Boolean).join(' '));
     });

@@ -12,7 +12,7 @@ service cloud.firestore {
     }
     function validSelfRating(d) {
       return !('rating' in d) || (
-        d.rating is number && d.rating >= 1 && d.rating <= 6
+        d.rating is number && d.rating >= 0 && d.rating <= 4.5
         && d.get('ratingStatus', 'provisional') == 'provisional'
       );
     }
@@ -40,8 +40,8 @@ service cloud.firestore {
         && request.resource.data.name.size() <= 40
         && request.resource.data.status == 'provisional'
         && request.resource.data.rating is number
-        && request.resource.data.rating >= 1
-        && request.resource.data.rating <= 6;
+        && request.resource.data.rating >= 0
+        && request.resource.data.rating <= 4.5;
       allow create, update, delete: if isAdmin();
     }
 
