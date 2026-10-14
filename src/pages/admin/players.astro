@@ -92,7 +92,7 @@ const games = (await getCollection('games')).map((g) => ({
 
       <div class="tabpanel" id="tab-bookings" hidden>
         <h1>Enrollments</h1>
-        <p class="muted how">Everyone who booked each game, with payment status. When enrollments are in, send each player your payment link on WhatsApp: tap <strong>Send link</strong> for one player, or <strong>Send to all unpaid</strong> to go through them one by one. Each tap opens WhatsApp (or WhatsApp Business) with the message ready, and you press send. Mark players Paid as the money comes in.</p>
+        <p class="muted how">Everyone who booked each game, with payment status. Send each player a WhatsApp confirmation that their slot is booked and when to arrive: tap <strong>Send confirmation</strong> for one player, or <strong>Send to all</strong> to go through them one by one. Each tap opens WhatsApp (or WhatsApp Business) with the message ready, and you press send. Mark players Paid as the money comes in.</p>
         <div id="t-bookings" class="enroll"></div>
       </div>
 
@@ -237,9 +237,9 @@ const games = (await getCollection('games')).map((g) => ({
 
     // ---------- Enrollments ----------
     let allBookings = [], allWaitlist = [];
-    const DEFAULT_MSG = "Hi {name}! Your spot in {game} on {when} at {venue} is reserved. To confirm it, please pay {price} here: {link}\n\nSee you on court!\nPadel Culture";
+    const DEFAULT_MSG = "Hi {name}! Your slot for {game} {day} at {venue} is confirmed. \u2705\n\nPlease be there sharp by {arrive}, 15 minutes before we start at {start}.\n\nSee you on court!\nPadel Culture";
     let msgTemplate = DEFAULT_MSG;
-    try { msgTemplate = localStorage.getItem('pc-msg') || DEFAULT_MSG; } catch (e) {}
+    try { msgTemplate = localStorage.getItem('pc-msg2') || DEFAULT_MSG; } catch (e) {}
     const links = {};   // gameId -> payment link typed in this session
     const queue = {};   // gameId -> index in "send to all"
     const inr = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
@@ -269,7 +269,7 @@ const games = (await getCollection('games')).map((g) => ({
             <td>${esc(fmtTs(b.createdAt))}</td>
             <td><button type="button" class="pill ${b.paid ? 'pill-paid' : 'pill-due'}" data-act="paid" data-id="${esc(b.id)}">${b.paid ? 'Paid ✓' : 'Payment due'}</button></td>
             <td class="acts">
-              <a class="linkbtn" data-act="send" data-id="${esc(b.id)}" data-game="${esc(g.id)}" href="${esc(waHref(b, g))}" target="_blank" rel="noopener">${b.linkSentAt ? 'Send again' : 'Send link'}</a>
+              <a class="linkbtn" data-act="send" data-id="${esc(b.id)}" data-game="${esc(g.id)}" href="${esc(waHref(b, g))}" target="_blank" rel="noopener">${b.linkSentAt ? 'Send again' : 'Send confirmation'}</a>
               ${b.linkSentAt ? `<span class="muted small">sent ${esc(fmtTs(b.linkSentAt))}</span>` : ''}
               <button type="button" class="linkbtn danger" data-act="remove" data-id="${esc(b.id)}">Remove</button>
             </td>
@@ -291,31 +291,38 @@ const games = (await getCollection('games')).map((g) => ({
             </div>
           </header>
           <div class="eg-pay">
-            <label>Payment link<input type="url" class="f-link" data-game="${esc(g.id)}" value="${esc(link)}" placeholder="Paste your UPI / Razorpay payment link" /></label>
             <div class="eg-pay-acts">
-              ${unpaid.length ? `<a class="btn btn-solid" data-act="all" data-game="${esc(g.id)}" href="${esc(waHref(next || unpaid[0], g))}" target="_blank" rel="noopener">${next ? `Send to ${esc((byUid[next.uid] || {}).name || next.name)} (${qi + 1} of ${unpaid.length}) →` : `Send to all unpaid (${unpaid.length})`}</a>` : '<button type="button" class="btn btn-solid" disabled>Everyone has paid</button>'}
+              ${unpaid.length ? `<a class="btn btn-solid" data-act="all" data-game="${esc(g.id)}" href="${esc(waHref(next || unpaid[0], g))}" target="_blank" rel="noopener">${next ? `Send to ${esc((byUid[next.uid] || {}).name || next.name)} (${qi + 1} of ${unpaid.length}) →` : `Send to all (${unpaid.length})`}</a>` : '<button type="button" class="btn btn-solid" disabled>Everyone confirmed</button>'}
               ${next ? `<button type="button" class="linkbtn" data-act="stop" data-game="${esc(g.id)}">Stop</button>` : ''}
               <button type="button" class="btn btn-ghost" data-act="csv" data-game="${esc(g.id)}" ${list.length ? '' : 'disabled'}>Download list</button>
             </div>
-            <p class="err eg-err" hidden>Paste your payment link here first. Then tap Send.</p>
           </div>
           ${list.length ? `<div class="table-wrap"><table><thead><tr><th class="num">#</th><th>Name</th><th>Mobile</th><th>Level</th><th>Booked</th><th>Payment</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p class="muted">No online enrollments yet.</p>'}
           ${wl.length ? `<p class="wl-title">Waitlist (${wl.length}), first to join at the top</p><ol class="wl">${wl.map((w) => { const p = byUid[w.uid] || {}; return `<li>${esc(p.name || w.name)} · <a href="https://wa.me/${esc(waNum(p.phone))}" target="_blank" rel="noopener">${esc(p.phone || '')}</a></li>`; }).join('')}</ol>` : ''}
         </article>`;
       }).join('') || '<p class="muted">No upcoming games.</p>';
       $('t-bookings').insertAdjacentHTML('beforeend', `<details class="msg-edit"><summary>Edit the WhatsApp message</summary>
-        <p class="muted small">Use {name}, {game}, {when}, {venue}, {price} and {link}. They're filled in for each player.</p>
+        <p class="muted small">Use {name}, {game}, {day} (today / tomorrow / date), {venue}, {start}, {arrive} (15 minutes before) and {price}. They're filled in for each player.</p>
         <textarea id="f-msg" rows="6">${esc(msgTemplate)}</textarea>
         <div class="sc-actions"><button type="button" class="btn btn-ghost" id="b-msg-save">Save message</button><button type="button" class="linkbtn" id="b-msg-reset">Reset to default</button></div></details>`);
     }
 
+    const tmFmt = (d) => d.toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: 'numeric', minute: '2-digit', hour12: true }).replace(' am', ' AM').replace(' pm', ' PM');
+    function dayWord(start) {
+      const k = (d) => d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      const today = new Date(), tom = new Date(Date.now() + 864e5);
+      if (k(start) === k(today)) return 'today';
+      if (k(start) === k(tom)) return 'tomorrow';
+      return 'on ' + start.toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'long', day: 'numeric', month: 'short' });
+    }
     function waMessage(b, g) {
-      const byUid = Object.fromEntries(players.map((p) => [p.id, p]));
-      const p = byUid[b.uid] || {};
+      const p = players.find((x) => x.id === b.uid) || {};
       const first = String(p.name || b.name || '').trim().split(/\s+/)[0] || 'there';
-      const link = (links[g.id] ?? g.paymentLink) || '';
-      return msgTemplate.replace(/\{name\}/g, first).replace(/\{game\}/g, g.title).replace(/\{when\}/g, g.when)
-        .replace(/\{venue\}/g, g.venue).replace(/\{price\}/g, inr(g.price)).replace(/\{link\}/g, link);
+      const start = new Date(g.start);
+      const arrive = new Date(start.getTime() - 15 * 60e3);
+      return msgTemplate.replace(/\{name\}/g, first).replace(/\{game\}/g, g.title).replace(/\{day\}/g, dayWord(start))
+        .replace(/\{when\}/g, g.when).replace(/\{venue\}/g, g.venue).replace(/\{start\}/g, tmFmt(start))
+        .replace(/\{arrive\}/g, tmFmt(arrive)).replace(/\{price\}/g, inr(g.price));
     }
     function waHref(b, g) {
       const p = players.find((x) => x.id === b.uid) || {};
@@ -331,15 +338,13 @@ const games = (await getCollection('games')).map((g) => ({
     $('t-bookings').addEventListener('click', async (e) => {
       const t = e.target.closest('[data-act], #b-msg-save, #b-msg-reset');
       if (!t) return;
-      if (t.id === 'b-msg-save') { msgTemplate = $('f-msg').value || DEFAULT_MSG; try { localStorage.setItem('pc-msg', msgTemplate); } catch (x) {} note('Message saved on this device.'); return; }
-      if (t.id === 'b-msg-reset') { msgTemplate = DEFAULT_MSG; try { localStorage.removeItem('pc-msg'); } catch (x) {} rerender(); return; }
+      if (t.id === 'b-msg-save') { msgTemplate = $('f-msg').value || DEFAULT_MSG; try { localStorage.setItem('pc-msg2', msgTemplate); } catch (x) {} note('Message saved on this device.'); return; }
+      if (t.id === 'b-msg-reset') { msgTemplate = DEFAULT_MSG; try { localStorage.removeItem('pc-msg2'); } catch (x) {} rerender(); return; }
       const act = t.dataset.act;
       const b = allBookings.find((x) => x.id === t.dataset.id);
       const card = t.closest('.eg');
       const needLink = (g) => {
-        const missing = !((links[g.id] ?? g.paymentLink) || '').trim();
-        if (card) { card.querySelector('.eg-err').hidden = !missing; if (missing) card.querySelector('.f-link').focus(); }
-        return missing;
+        return false;
       };
       const markSent = (bk) => {
         fb.adminUpdateBooking(bk.id, { linkSentAt: new Date() }).catch((x) => console.error(x));
@@ -369,7 +374,7 @@ const games = (await getCollection('games')).map((g) => ({
           t.href = waHref(cur, g);
           if (t.href.endsWith('#')) { e.preventDefault(); note(`No mobile number saved for ${cur.name}.`); }
           else markSent(cur);
-          if (i + 1 < unpaid.length) queue[g.id] = i + 1; else { delete queue[g.id]; note(`Payment link sent to all ${unpaid.length} unpaid players for ${g.title}.`); }
+          if (i + 1 < unpaid.length) queue[g.id] = i + 1; else { delete queue[g.id]; note(`Confirmation sent to all ${unpaid.length} players for ${g.title}.`); }
           setTimeout(rerender, 400);
         } else if (act === 'stop') {
           delete queue[t.dataset.game]; rerender();
