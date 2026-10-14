@@ -130,7 +130,7 @@ const hlTags = [...new Set(highlights.map((h) => h.tag).filter(Boolean))];
             const left = g.data.spots - taken;
             const full = g.data.status === 'full' || !(left > 0);
             return (
-              <li class:list={['fixture', { full }]} data-start={g.data.date.toISOString()} data-id={g.id} data-spots={g.data.spots} data-reserved={g.data.reserved || 0} data-closed={g.data.status === 'full' ? '1' : ''}>
+              <li class:list={['fixture', { full }]} id={`game-${g.id}`} data-start={g.data.date.toISOString()} data-id={g.id} data-spots={g.data.spots} data-reserved={g.data.reserved || 0} data-closed={g.data.status === 'full' ? '1' : ''}>
                 <div class="when">
                   <span class="dow">{fmt(g.data.date, { weekday: 'short' })}</span>
                   <span class="day">{fmt(g.data.date, { day: 'numeric' })}</span>
@@ -786,7 +786,8 @@ const hlTags = [...new Set(highlights.map((h) => h.tag).filter(Boolean))];
   .hl-cta { display: flex; flex-wrap: wrap; gap: 0.8rem; margin-top: 1.6rem; }
   .hl .btn-ghost { color: #F2F6EC; border-color: rgba(242,246,236,.5); }
   .hl .btn-ghost:hover { background: rgba(255,255,255,.1); }
-  section[id] { scroll-margin-top: 4.5rem; }
+  section[id], .fixture[id] { scroll-margin-top: 5rem; }
+  .fixture:target { background: var(--moss); box-shadow: inset 3px 0 0 var(--olive); }
   .guide-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 2rem 4rem; align-items: start; }
   .g-tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.8rem; }
   .g-tab { font: 500 0.85rem var(--body); padding: 0.55rem 1rem; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--chalk); cursor: pointer; }
