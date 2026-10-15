@@ -220,9 +220,9 @@ export function computeSession(matches, players, opts = {}) {
 
 // ---------- Hosting adjustment H ----------
 // A host scores five things from −2 (clearly below their displayed level) to +2 (clearly above).
-// raw = 0.6 × (weighted score / 2); effective = raw × (1 − reliability); total H capped at ±1.0.
+// raw = 0.6 × (weighted score / 2); effective = raw × (1 − reliability); total H capped at ±2.0.
 export const HOST = {
-  max: 0.6, cap: 1.0,
+  max: 0.6, cap: 2.0,
   attrs: [
     { id: 'technique', label: 'Technique', w: 0.25, hint: 'Stroke quality on both sides, volleys, overheads' },
     { id: 'movement', label: 'Movement & positioning', w: 0.20, hint: 'Moves as a pair, recovers position, covers the middle' },

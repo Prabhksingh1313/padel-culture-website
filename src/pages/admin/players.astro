@@ -134,7 +134,7 @@ const games = (await getCollection('games')).map((g) => ({
           <div class="sc-actions"><button type="button" class="btn btn-solid" id="sc-apply">Apply and publish to leaderboard</button></div>
         </div>
         <h2 class="bk-title">Host adjustment</h2>
-        <p class="muted how">After a session, score a player on five things from −2 (clearly below their rating) to +2 (clearly above). A full +2 review is worth +0.60, scaled down by the player's reliability: it matters most for new players and very little once they have plenty of results. A player's total host adjustment is capped at ±1.00.</p>
+        <p class="muted how">After a session, score a player on five things from −2 (clearly below their rating) to +2 (clearly above). A full +2 review is worth +0.60, scaled down by the player's reliability: it matters most for new players and very little once they have plenty of results. A player's total host adjustment is capped at ±2.00.</p>
         <div class="sess">
           <label>Player<select id="hr-player"></select></label>
           <label>Date<input id="hr-date" type="date" /></label>
@@ -634,7 +634,7 @@ const games = (await getCollection('games')).map((g) => ({
       if (!x) { $('hr-err').textContent = 'Choose a player.'; $('hr-err').hidden = false; return; }
       const atMs = Date.parse($('hr-date').value + 'T23:00:00+05:30') || Date.now();
       const res = R.hostAdjust(hrScores(), x, atMs);
-      $('hr-rows').innerHTML = `<tr><td>${esc(x.name)}${typeof x.rating !== 'number' ? ' <span class="muted">(unrated, from 2.00)</span>' : ''}</td><td class="num">${res.weighted > 0 ? '+' : ''}${res.weighted.toFixed(2)}</td><td class="num">${res.raw > 0 ? '+' : ''}${res.raw.toFixed(2)}</td><td class="num">${Math.round(res.reliability * 100)}%</td><td class="num ${res.effective > 0 ? 'up' : res.effective < 0 ? 'down' : ''}">${res.effective > 0 ? '+' : ''}${res.effective.toFixed(2)}${res.capped ? ' <span class="muted">(±1.00 cap)</span>' : ''}</td><td class="num">${res.before.toFixed(2)} → <strong>${res.after.toFixed(2)}</strong></td><td>${esc(res.tier)}</td></tr>`;
+      $('hr-rows').innerHTML = `<tr><td>${esc(x.name)}${typeof x.rating !== 'number' ? ' <span class="muted">(unrated, from 2.00)</span>' : ''}</td><td class="num">${res.weighted > 0 ? '+' : ''}${res.weighted.toFixed(2)}</td><td class="num">${res.raw > 0 ? '+' : ''}${res.raw.toFixed(2)}</td><td class="num">${Math.round(res.reliability * 100)}%</td><td class="num ${res.effective > 0 ? 'up' : res.effective < 0 ? 'down' : ''}">${res.effective > 0 ? '+' : ''}${res.effective.toFixed(2)}${res.capped ? ' <span class="muted">(±2.00 cap)</span>' : ''}</td><td class="num">${res.before.toFixed(2)} → <strong>${res.after.toFixed(2)}</strong></td><td>${esc(res.tier)}</td></tr>`;
       hostPreview = { x, res, review: { date: $('hr-date').value, host: $('hr-host').value.trim(), notes: $('hr-notes').value.trim(), scores: hrScores() } };
       $('hr-out').hidden = false;
       $('hr-apply').disabled = res.effective === 0;
