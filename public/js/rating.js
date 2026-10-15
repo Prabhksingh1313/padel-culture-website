@@ -116,43 +116,98 @@ export function score(answers) {
   return { rating, tier: tierFor(rating).name, capped: raw > cap };
 }
 
-// ---------- Padel Culture Rating: session engine ----------
-// Every match counts. For each match, a team's expected share of the points depends on
-// the levels of all four players: its average rating against the opponents' average.
-// After the session, each player's rating moves by K x (actual share - expected share),
-// summed over their matches. New players move faster; the change per session is capped.
+// ---------- Padel Culture Rating: match engine (v2, Oct 2026) ----------
+// Same maths as the "Padel Culture Rating Model" workbook (Engine tab).
+// For every match, in order:
+//   team rating = average of the two players
+//   expected E  = a·P(win) + (1−a)·E[points share]     (a depends on the format)
+//   actual A    = a·Win    + (1−a)·points share
+//   Δ player    = ± K · W_format · tier · f · C · (A − E) · ORF
+// K shrinks as reliability grows; reliability r = (n + n0) / (n + n0 + k), where n is the
+// player's time-decayed match exposure. ORF damps results against unproven players.
 export const ENGINE = {
-  spread: 3.1,                      // 1.0 rating gap = about 68% expected share of points
-  k: (n) => (n < 5 ? 0.32 : n < 20 ? 0.16 : 0.1),
-  cap: (n) => (n < 5 ? 0.4 : 0.25),
+  sMatch: 1.4,        // 1.0 level gap → ≈84% chance to win the match
+  sPoint: 4.0,        // 1.0 level gap → ≈64% of the points
+  kMax: 0.40,         // K for a brand-new player
+  kMin: 0.06,         // K for a fully established player
+  kCred: 8,           // exposure at which reliability = 50%
+  halfLife: 180,      // days; old matches count half after this long
+  priorQuestionnaire: 1,  // n0 for questionnaire ratings
+  priorVerified: 6,       // n0 for organiser-set / Court-Proven ratings
+  orfFloor: 0.5,
+  infoCap: 1.25,
+  legacyExposurePerSession: 4.2,  // estimate for players rated before v2 (7 Americano matches × 0.6)
 };
-export function expectedShare(teamAvg, oppAvg) {
-  return 1 / (1 + Math.pow(10, (oppAvg - teamAvg) / ENGINE.spread));
+export const FORMATS = {
+  americano:  { label: 'Americano',         w: 0.60, alpha: 0,   ref: 24 },
+  mexicano:   { label: 'Mexicano',          w: 0.75, alpha: 0,   ref: 24 },
+  kotc:       { label: 'King of the Court', w: 0.40, alpha: 1,   ref: 9 },
+  tournament: { label: 'Tournament',        w: 1.00, alpha: 0.5, ref: 18 },
+};
+export const TOURNAMENT_TIERS = { internal: { label: 'Internal', mult: 1.0 }, open: { label: 'Club Open', mult: 1.15 }, ranked: { label: 'Ranked / External', mult: 1.3 } };
+
+const logistic = (d, s) => 1 / (1 + Math.pow(10, -d / s));
+export function expectedShare(teamAvg, oppAvg) { return logistic(teamAvg - oppAvg, ENGINE.sPoint); }
+export const reliability = (n, n0) => (n + n0) / (n + n0 + ENGINE.kCred);
+const kFor = (rel) => ENGINE.kMin + (ENGINE.kMax - ENGINE.kMin) * (1 - rel);
+
+// Exposure decayed to a date (ms). Players rated before v2 get an estimate from their session count.
+export function exposureAt(p, atMs) {
+  const n = typeof p.exposure === 'number' ? p.exposure : (p.sessions || 0) * ENGINE.legacyExposurePerSession;
+  const since = typeof p.exposureAt === 'number' ? p.exposureAt : (typeof p.lastSessionAt === 'number' ? p.lastSessionAt : atMs);
+  const days = Math.max(0, (atMs - since) / 864e5);
+  return n * Math.pow(0.5, days / ENGINE.halfLife);
 }
-// matches: [{ a: [uid, uid], b: [uid, uid], sa: points, sb: points }]
-// players: { [uid]: { rating, sessions, status, partners } } (ratings on the 0-7 scale)
-export function computeSession(matches, players) {
+export const priorFor = (p) => (p.status === 'verified' ? ENGINE.priorVerified : ENGINE.priorQuestionnaire);
+
+// matches: [{ a: [uid, uid], b: [uid, uid], sa, sb }] in the order they were played
+//   (sa/sb = points; for tournaments enter total games)
+// players: { [uid]: { rating, sessions, status, partners, exposure, exposureAt, lastSessionAt } }
+// opts: { format: 'americano'|'mexicano'|'kotc'|'tournament', tier: 'internal'|'open'|'ranked', dateMs }
+export function computeSession(matches, players, opts = {}) {
+  const fmt = FORMATS[opts.format] || FORMATS.americano;
+  const tierMult = opts.format === 'tournament' ? (TOURNAMENT_TIERS[opts.tier] || TOURNAMENT_TIERS.internal).mult : 1;
+  const at = opts.dateMs || Date.now();
+  const C = fmt.alpha + (1 - fmt.alpha) * ENGINE.sPoint / ENGINE.sMatch;
   const out = {};
-  const row = (uid) => (out[uid] ||= { uid, before: players[uid].rating, sessions: players[uid].sessions || 0, prevStatus: players[uid].status || 'provisional', partnerSet: new Set(), matches: 0, won: 0, played: 0, exp: 0, raw: 0 });
+  const row = (uid) => {
+    if (out[uid]) return out[uid];
+    const p = players[uid];
+    return (out[uid] = { uid, before: p.rating, cur: p.rating, n: exposureAt(p, at), n0: priorFor(p), sessions: p.sessions || 0,
+      prevStatus: p.status || 'provisional', partnerSet: new Set(), matches: 0, won: 0, played: 0, exp: 0, raw: 0, mwon: 0 });
+  };
   for (const m of matches) {
     const total = m.sa + m.sb;
     if (!total) continue;
-    const A = (players[m.a[0]].rating + players[m.a[1]].rating) / 2;
-    const B = (players[m.b[0]].rating + players[m.b[1]].rating) / 2;
-    const eA = expectedShare(A, B);
-    for (const [team, pts, e] of [[m.a, m.sa, eA], [m.b, m.sb, 1 - eA]]) {
-      for (const uid of team) {
-        const r = row(uid);
-        r.partnerSet.add(team[0] === uid ? team[1] : team[0]);
-        r.matches++; r.won += pts; r.played += total; r.exp += e * total;
-        r.raw += ENGINE.k(r.sessions) * (pts / total - e);
-      }
-    }
+    const rs = [...m.a, ...m.b].map(row);
+    const rel = rs.map((r) => reliability(r.n, r.n0));
+    const RA = (rs[0].cur + rs[1].cur) / 2, RB = (rs[2].cur + rs[3].cur) / 2;
+    const Em = logistic(RA - RB, ENGINE.sMatch), Es = logistic(RA - RB, ENGINE.sPoint);
+    const shareA = m.sa / total, winA = m.sa > m.sb ? 1 : m.sa < m.sb ? 0 : 0.5;
+    const E = fmt.alpha * Em + (1 - fmt.alpha) * Es;
+    const A = fmt.alpha * winA + (1 - fmt.alpha) * shareA;
+    const f = Math.min(ENGINE.infoCap, Math.sqrt(total / fmt.ref));
+    const expo = fmt.w * tierMult * f;
+    const relSum = rel.reduce((s, x) => s + x, 0);
+    rs.forEach((r, i) => {
+      const teamA = i < 2;
+      const orf = ENGINE.orfFloor + (1 - ENGINE.orfFloor) * (relSum - rel[i]) / 3;
+      const d = (teamA ? 1 : -1) * kFor(rel[i]) * fmt.w * tierMult * f * C * (A - E) * orf;
+      r.raw += d;
+      r.cur = clamp(r.cur + d);
+      r.n += expo;
+      const pts = teamA ? m.sa : m.sb;
+      const team = teamA ? m.a : m.b;
+      r.partnerSet.add(team[0] === r.uid ? team[1] : team[0]);
+      r.matches++; r.won += pts; r.played += total; r.exp += (teamA ? Es : 1 - Es) * total;
+      if ((teamA ? winA : 1 - winA) === 1) r.mwon++;
+    });
   }
   for (const r of Object.values(out)) {
-    const cap = ENGINE.cap(r.sessions);
-    r.delta = r2(Math.max(-cap, Math.min(cap, r.raw)));
-    r.after = r2(clamp(r.before + r.delta));
+    r.after = r2(r.cur);
+    r.delta = r2(r.after - r.before);
+    r.exposureAfter = Math.round(r.n * 1000) / 1000;
+    r.reliability = Math.round(reliability(r.n, r.n0) * 100) / 100;
     r.share = r.played ? r.won / r.played : 0;
     r.expShare = r.played ? r.exp / r.played : 0;
     r.tier = tierFor(r.after).name;

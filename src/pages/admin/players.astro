@@ -113,11 +113,13 @@ const games = (await getCollection('games')).map((g) => ({
 
       <div class="tabpanel" id="tab-scores" hidden>
         <h1>Scores &amp; ratings</h1>
-        <p class="muted how">Enter every match from a session. For each match, the team's expected share of points comes from all four players' ratings. Beat that share and your rating goes up; fall short and it goes down. New players move faster, the change per session is capped, and ratings turn Court-Proven after 5 sessions with at least 6 different partners. Players without a rating start at 2.00.</p>
+        <p class="muted how">Enter every match from a session in the order it was played. For each match, the expected result comes from all four players' ratings (team averages). Beat it and your rating goes up; fall short and it goes down. How far it moves depends on the format (Americano 0.60, Mexicano 0.75, King of the Court 0.40, Tournament 1.00 × tier), the match length, and each player's reliability: new players move fast, established ones slowly, and results against unproven players count less. For tournaments, enter total games won by each team. Players without a rating start at 2.00.</p>
         <div class="sess">
           <label>Session<select id="sc-game"></select></label>
           <label>Name<input id="sc-title" placeholder="e.g. Thursday Night Americano" /></label>
           <label>Date<input id="sc-date" type="date" /></label>
+          <label>Format<select id="sc-format"><option value="americano">Americano</option><option value="mexicano">Mexicano</option><option value="kotc">King of the Court</option><option value="tournament">Tournament</option></select></label>
+          <label id="sc-tier-l" hidden>Tournament tier<select id="sc-tier"><option value="internal">Internal</option><option value="open">Club Open</option><option value="ranked">Ranked / External</option></select></label>
         </div>
         <div class="matches-head"><span>Team A</span><span>Score</span><span></span><span>Score</span><span>Team B</span><span></span></div>
         <div id="sc-matches" class="matches"></div>
@@ -128,7 +130,7 @@ const games = (await getCollection('games')).map((g) => ({
         <p class="err" id="sc-err" hidden></p>
         <div id="sc-out" hidden>
           <h2>Rating changes</h2>
-          <div class="table-wrap"><table><thead><tr><th>Player</th><th class="num">Matches</th><th class="num">Points</th><th class="num">Share</th><th class="num">Expected</th><th class="num">Change</th><th class="num">Rating</th><th>Level</th></tr></thead><tbody id="sc-rows"></tbody></table></div>
+          <div class="table-wrap"><table><thead><tr><th>Player</th><th class="num">Matches</th><th class="num">Points</th><th class="num">Share</th><th class="num">Expected</th><th class="num">Change</th><th class="num">Rating</th><th class="num">Reliability</th><th>Level</th></tr></thead><tbody id="sc-rows"></tbody></table></div>
           <div class="sc-actions"><button type="button" class="btn btn-solid" id="sc-apply">Apply and publish to leaderboard</button></div>
         </div>
         <h2 class="bk-title">Past sessions</h2>
@@ -598,6 +600,8 @@ const games = (await getCollection('games')).map((g) => ({
       loadSessions();
     }
     $('sc-add').addEventListener('click', () => addMatch());
+    $('sc-format').addEventListener('change', () => { $('sc-tier-l').hidden = $('sc-format').value !== 'tournament'; $('sc-out').hidden = true; });
+    $('sc-tier').addEventListener('change', () => { $('sc-out').hidden = true; });
     $('sc-preview').addEventListener('click', () => {
       const { matches, problems } = readMatches();
       $('sc-err').hidden = true;
@@ -609,16 +613,17 @@ const games = (await getCollection('games')).map((g) => ({
       const input = {};
       matches.forEach((m) => [...m.a, ...m.b].forEach((uid) => {
         const x = byId[uid];
-        input[uid] = { rating: typeof x.rating === 'number' ? x.rating : START, sessions: x.sessions || 0, status: x.ratingStatus || 'provisional', partners: x.partners || [], unrated: typeof x.rating !== 'number' };
+        input[uid] = { rating: typeof x.rating === 'number' ? x.rating : START, sessions: x.sessions || 0, status: x.ratingStatus || 'provisional', partners: x.partners || [], unrated: typeof x.rating !== 'number', exposure: x.exposure, exposureAt: x.exposureAt, lastSessionAt: x.lastSessionAt };
       }));
-      const res = R.computeSession(matches, input);
+      const opts = { format: $('sc-format').value, tier: $('sc-tier').value, dateMs: Date.parse($('sc-date').value + 'T21:00:00+05:30') || Date.now() };
+      const res = R.computeSession(matches, input, opts);
       const list = Object.values(res).sort((a, b) => b.delta - a.delta);
       const pct = (x) => Math.round(x * 100) + '%';
       $('sc-rows').innerHTML = list.map((r) => {
         const x = byId[r.uid];
-        return `<tr><td>${esc(x.name)}${input[r.uid].unrated ? ' <span class="muted">(new, from 2.00)</span>' : ''}</td><td class="num">${r.matches}</td><td class="num">${r.won}/${r.played}</td><td class="num">${pct(r.share)}</td><td class="num">${pct(r.expShare)}</td><td class="num ${r.delta > 0 ? 'up' : r.delta < 0 ? 'down' : ''}">${r.delta > 0 ? '+' : ''}${r.delta.toFixed(2)}</td><td class="num">${r.before.toFixed(2)} → <strong>${r.after.toFixed(2)}</strong></td><td>${esc(r.tier)} · ${r.status === 'verified' ? 'Court-Proven' : 'Calibrating'} <span class="muted">${R.FORM_SYMBOL[r.beat]}</span></td></tr>`;
+        return `<tr><td>${esc(x.name)}${input[r.uid].unrated ? ' <span class="muted">(new, from 2.00)</span>' : ''}</td><td class="num">${r.matches}</td><td class="num">${r.won}/${r.played}</td><td class="num">${pct(r.share)}</td><td class="num">${pct(r.expShare)}</td><td class="num ${r.delta > 0 ? 'up' : r.delta < 0 ? 'down' : ''}">${r.delta > 0 ? '+' : ''}${r.delta.toFixed(2)}</td><td class="num">${r.before.toFixed(2)} → <strong>${r.after.toFixed(2)}</strong></td><td class="num">${pct(r.reliability)}</td><td>${esc(r.tier)} · ${r.status === 'verified' ? 'Court-Proven' : 'Calibrating'} <span class="muted">${R.FORM_SYMBOL[r.beat]}</span></td></tr>`;
       }).join('');
-      lastPreview = { matches, list };
+      lastPreview = { matches, list, opts };
       $('sc-out').hidden = false;
       $('sc-apply').disabled = false;
       $('sc-apply').textContent = 'Apply and publish to leaderboard';
@@ -637,12 +642,13 @@ const games = (await getCollection('games')).map((g) => ({
           partnersNew: [...r.partnerSet].filter((u) => !known.has(u)),
           form: [r.beat, ...(x.form || [])].slice(0, 5),
           sessionsAfter: (x.sessions || 0) + 1,
+          exposure: r.exposureAfter, exposureAt: lastPreview.opts.dateMs, reliability: r.reliability,
         };
       });
-      const session = { title: $('sc-title').value.trim() || 'Session', date: $('sc-date').value, gameId: $('sc-game').value || null, matches: lastPreview.matches };
+      const session = { title: $('sc-title').value.trim() || 'Session', date: $('sc-date').value, gameId: $('sc-game').value || null, matches: lastPreview.matches, format: lastPreview.opts.format, tier: lastPreview.opts.format === 'tournament' ? lastPreview.opts.tier : null, engine: 'v2' };
       try {
         await fb.adminApplySession(results, session);
-        results.forEach((r) => Object.assign(byId[r.uid], { rating: r.after, tier: r.tier, ratingStatus: r.status, sessions: r.sessionsAfter, form: r.form, partners: [...(byId[r.uid].partners || []), ...r.partnersNew] }));
+        results.forEach((r) => Object.assign(byId[r.uid], { rating: r.after, tier: r.tier, ratingStatus: r.status, sessions: r.sessionsAfter, form: r.form, exposure: r.exposure, exposureAt: r.exposureAt, reliability: r.reliability, partners: [...(byId[r.uid].partners || []), ...r.partnersNew] }));
         render();
         lastPreview = null;
         btn.textContent = 'Saved ✓';
@@ -665,7 +671,7 @@ const games = (await getCollection('games')).map((g) => ({
         $('sc-history').innerHTML = list.length ? list.map((s) => {
           const res = Object.entries(s.results || {}).sort((a, b) => b[1].delta - a[1].delta);
           return `<div class="bk-game"><h3>${esc(s.title)} <span class="muted">· ${esc(s.date || '')}</span></h3>
-            <p class="muted">${(s.matches || []).length} matches · ${res.length} players</p>
+            <p class="muted">${esc((R.FORMATS[s.format] || {}).label || 'Americano')} · ${(s.matches || []).length} matches · ${res.length} players</p>
             <ol>${res.map(([uid, r]) => `<li>${esc((byId[uid] || {}).name || 'Player')} · ${Number(r.before).toFixed(2)} → ${Number(r.after).toFixed(2)} (${r.delta > 0 ? '+' : ''}${Number(r.delta).toFixed(2)})</li>`).join('')}</ol></div>`;
         }).join('') : '<p class="muted">No sessions entered yet.</p>';
       } catch (e) {
