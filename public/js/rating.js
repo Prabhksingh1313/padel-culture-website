@@ -18,10 +18,8 @@ export const TIERS = [
 export const rangeText = (t) => `${t.min.toFixed(1)}–${t.name === 'Elite' ? '7.0' : (Math.floor(t.max * 10) / 10).toFixed(1)}`;
 export const levelWithRange = (t) => `${t.name} (${rangeText(t)})`;
 
-// The questionnaire can't place anyone above this. Players who give a Playtomic level
-// get a little more room. Advanced and Elite are only earned in games.
+// The questionnaire can't place anyone above this. Advanced and Elite are only earned in games.
 export const SELF_RATING_CAP = 3.5;
-export const PLAYTOMIC_CAP = 4.5;
 export const START_RATING = 2.0;   // players entered in a session without a rating
 
 // ---------- Playtomic ----------
@@ -54,7 +52,6 @@ export const FORM_SYMBOL = { up: '▲', par: '●', down: '▼' };
 // The 13-question onboarding questionnaire (final version, Oct 2026).
 // Each answer scores 0-4; w = weight in the base score (the 13 weights sum to 1).
 // Matches the Base_Score tab of the Padel Culture Rating Model workbook.
-// The last entry (kind 'pt') is the optional Playtomic level and is not one of the 13.
 export const QUESTIONS = [
   { id: 'experience', kind: 'bg', w: 0.06, q: 'How long have you played padel?',
     a: ['First time / never', 'Less than 3 months', '3–12 months', '1–3 years', '3+ years'] },
@@ -82,8 +79,6 @@ export const QUESTIONS = [
     a: ['Unsure where to stand', 'Know basic positions', 'Move with partner, recover position', 'Communicate, cover the middle, transition', 'Anticipate and build points as a pair'] },
   { id: 'matches', kind: 'bg', w: 0.06, q: 'Competitive record',
     a: ['Never played competitively', 'Social Americanos only', 'Regular Americanos / leagues, win some', 'Club tournaments, reach later rounds', 'Win club tournaments / ranked events'] },
-  { id: 'playtomic', kind: 'pt', q: 'Do you have a Playtomic level? (optional)',
-    a: ["No, I don't use Playtomic", 'Under 1.5', '1.5 to 2.4', '2.5 to 3.4', '3.5 to 4.4', '4.5 or higher'] },
 ];
 // Gates: no high start without the matching skill.
 const BASE_GAMMA = 1.15;
@@ -117,12 +112,8 @@ export function score(answers) {
   let raw = SCALE_MIN + Math.pow(S, BASE_GAMMA) * (SCALE_MAX - SCALE_MIN);
   for (const g of GATES) if ((answers[g.id] ?? 0) <= g.atMost) raw = Math.min(raw, g.cap);
   let cap = SELF_RATING_CAP;
-  // A Playtomic level is outside evidence: blend it in and allow a slightly higher start.
-  const PT_MID = [null, 1.0, 2.0, 3.0, 4.0, 4.8];
-  const pt = PT_MID[answers.playtomic ?? 0];
-  if (pt != null) { raw = (raw + pt) / 2; cap = PLAYTOMIC_CAP; }
   const rating = r2(Math.min(raw, cap));
-  return { rating, tier: tierFor(rating).name, capped: raw > cap, playtomic: pt };
+  return { rating, tier: tierFor(rating).name, capped: raw > cap };
 }
 
 // ---------- Padel Culture Rating: session engine ----------
