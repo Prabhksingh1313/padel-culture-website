@@ -51,26 +51,45 @@ export function formBeat(share, expected) {
 }
 export const FORM_SYMBOL = { up: '▲', par: '●', down: '▼' };
 
-// kind: 'bg' = background (30% of the score), 'skill' = on-court skill (70%).
+// The 13-question onboarding questionnaire (final version, Oct 2026).
+// Each answer scores 0-4; w = weight in the base score (the 13 weights sum to 1).
+// Matches the Base_Score tab of the Padel Culture Rating Model workbook.
+// The last entry (kind 'pt') is the optional Playtomic level and is not one of the 13.
 export const QUESTIONS = [
-  { id: 'experience', kind: 'bg', q: 'How long have you played padel?',
-    a: ['Never, or just once', 'Under 3 months', '3 to 12 months', '1 to 3 years', 'More than 3 years'] },
-  { id: 'frequency', kind: 'bg', q: 'How often do you play?',
-    a: ['Less than once a month', '2 to 3 times a month', 'Once a week', '2 to 3 times a week', '4 or more times a week'] },
-  { id: 'racket', kind: 'bg', q: 'Have you played other racket sports?',
-    a: ['No', 'Casual badminton or table tennis', 'Regular badminton or pickleball', 'Regular tennis or squash', 'Competitive tennis or squash'] },
-  { id: 'serve', kind: 'skill', q: 'How is your serve?',
-    a: ['I often miss', 'I usually get it in', 'Deep and consistent', 'I can aim it where I want', 'I vary spin and placement to set up the point'] },
-  { id: 'glass', kind: 'skill', q: 'When the ball comes off the back glass…',
-    a: ['I usually miss it', 'I sometimes return it', 'I return it most of the time', 'I can attack after it bounces off', 'I am comfortable even off the side and back glass together'] },
-  { id: 'net', kind: 'skill', q: 'How do you play at the net?',
-    a: ['I avoid the net', 'I can block the ball back', 'Steady volleys', 'I place volleys deep or at angles', 'I finish points at the net'] },
-  { id: 'overhead', kind: 'skill', q: 'When a lob comes over you…',
-    a: ['I let it bounce', 'I try to smash, often out', 'I play a controlled bandeja', 'Bandeja and víbora with spin', 'I can smash the ball out of the court'] },
-  { id: 'matches', kind: 'bg', q: 'What match experience do you have?',
-    a: ['None yet', 'Friendly games only', 'Regular Americanos', 'Club tournaments', 'Ranked or federation tournaments'] },
-  { id: 'playtomic', kind: 'pt', q: 'Do you have a Playtomic level?',
+  { id: 'experience', kind: 'bg', w: 0.06, q: 'How long have you played padel?',
+    a: ['First time / never', 'Less than 3 months', '3–12 months', '1–3 years', '3+ years'] },
+  { id: 'frequency', kind: 'bg', w: 0.05, q: 'How often do you play?',
+    a: ['Less than once a month', '1–2 times a month', 'Weekly', '2–3 times a week', '4+ times a week'] },
+  { id: 'racket', kind: 'bg', w: 0.06, q: 'Other racket-sport background?',
+    a: ['None', 'Casual', 'Regular club-level tennis/squash/badminton/pickleball', 'Competitive (state/university)', 'National level / coached for years'] },
+  { id: 'serve', kind: 'skill', w: 0.07, q: 'How good is your serve?',
+    a: ["I often can't get it in, or double-fault a lot", 'It goes in, but slow with no aim', "Consistent, and I can aim it at the middle or the receiver's backhand", 'I vary placement (side glass, middle, body) and add slice; I rarely fault', 'I use my serve to set up the point: wide to the glass, into the body, mixing spin and pace, then I follow it to the net'] },
+  { id: 'ground', kind: 'skill', w: 0.09, q: 'Groundstrokes from the back',
+    a: ["Can't sustain a rally", 'Rallies of 3–4 shots at slow pace', 'Consistent at medium pace', 'Control depth and direction', 'Vary pace and spin under pressure'] },
+  { id: 'net', kind: 'skill', w: 0.09, q: 'Volleys at the net',
+    a: ['Avoid the net', 'Occasional block volleys', 'Comfortable on easy volleys', 'Deep or to-the-feet volleys', 'Punch and drop volleys; dominate the net'] },
+  { id: 'glass', kind: 'skill', w: 0.11, q: 'Back-wall play',
+    a: ['Let it pass / hit before the wall', 'Return easy back-wall balls sometimes', 'Return most defensively', 'Play off it with control and direction', 'Attack off the back wall'] },
+  { id: 'sidewall', kind: 'skill', w: 0.08, q: 'Side-wall and double-wall play',
+    a: ["Can't handle", 'Rarely return', 'Simple side-wall balls', 'Handle double walls', 'Read all combinations instinctively'] },
+  { id: 'lob', kind: 'skill', w: 0.08, q: 'Lob and defence',
+    a: ["Don't lob", 'Lob without control', 'Lob to regain the net sometimes', 'Consistent deep defensive lobs', 'Lob offensively; turn defence into attack'] },
+  { id: 'overhead', kind: 'skill', w: 0.09, q: 'Bandeja / víbora',
+    a: ["Don't know them", 'Attempt, rarely in', 'Consistent bandeja to keep the net', 'Bandeja and víbora with direction', 'Full overhead variety by situation'] },
+  { id: 'smash', kind: 'skill', w: 0.07, q: 'Smash and finishing',
+    a: ['No smash', 'Flat smash, sometimes in', 'Finish easy balls', 'Power smash; attempt por tres', 'Por tres / por cuatro reliably'] },
+  { id: 'position', kind: 'skill', w: 0.09, q: 'Positioning and teamwork',
+    a: ['Unsure where to stand', 'Know basic positions', 'Move with partner, recover position', 'Communicate, cover the middle, transition', 'Anticipate and build points as a pair'] },
+  { id: 'matches', kind: 'bg', w: 0.06, q: 'Competitive record',
+    a: ['Never played competitively', 'Social Americanos only', 'Regular Americanos / leagues, win some', 'Club tournaments, reach later rounds', 'Win club tournaments / ranked events'] },
+  { id: 'playtomic', kind: 'pt', q: 'Do you have a Playtomic level? (optional)',
     a: ["No, I don't use Playtomic", 'Under 1.5', '1.5 to 2.4', '2.5 to 3.4', '3.5 to 4.4', '4.5 or higher'] },
+];
+// Gates: no high start without the matching skill.
+const BASE_GAMMA = 1.15;
+const GATES = [
+  { id: 'glass', atMost: 1, cap: 2.4 },     // weak back-wall play
+  { id: 'overhead', atMost: 1, cap: 3.4 },  // no bandeja
 ];
 
 export function tierFor(rating) {
@@ -93,13 +112,10 @@ export function normPoint(p) {
 
 // answers: { [questionId]: 0..4 }
 export function score(answers) {
-  const avg = (kind) => {
-    const qs = QUESTIONS.filter((q) => q.kind === kind);
-    return qs.reduce((s, q) => s + (answers[q.id] ?? 0), 0) / (qs.length * 4);
-  };
-  // A slight curve so middle-of-the-road answers land around Intermediate, not higher.
-  const f = Math.pow(0.3 * avg('bg') + 0.7 * avg('skill'), 1.1);
-  let raw = SCALE_MIN + f * (SCALE_MAX - SCALE_MIN);
+  // Weighted score S in [0,1], then a convex curve: rating = 7 x S^1.15.
+  const S = QUESTIONS.filter((q) => q.w).reduce((s, q) => s + q.w * (answers[q.id] ?? 0), 0) / 4;
+  let raw = SCALE_MIN + Math.pow(S, BASE_GAMMA) * (SCALE_MAX - SCALE_MIN);
+  for (const g of GATES) if ((answers[g.id] ?? 0) <= g.atMost) raw = Math.min(raw, g.cap);
   let cap = SELF_RATING_CAP;
   // A Playtomic level is outside evidence: blend it in and allow a slightly higher start.
   const PT_MID = [null, 1.0, 2.0, 3.0, 4.0, 4.8];
