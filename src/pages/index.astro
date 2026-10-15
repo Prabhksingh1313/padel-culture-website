@@ -54,7 +54,7 @@ const jsonld = [
     startDate: g.data.date.toISOString(),
     eventStatus: 'https://schema.org/EventScheduled',
     eventAttendanceMode: 'https://schema.org/OfflineEventAttendanceMode',
-    location: { '@type': 'Place', name: g.data.venue, address: `${g.data.area}, Delhi, India` },
+    location: { '@type': 'Place', name: g.data.venue, address: `${g.data.venue.toLowerCase().includes(String(g.data.area).toLowerCase()) ? g.data.venue : g.data.venue + ', ' + g.data.area}, Delhi, India` },
     organizer: { '@type': 'Organization', name: site.name, url: Astro.site?.toString() },
     offers: { '@type': 'Offer', price: g.data.price, priceCurrency: 'INR', url: bookHref(g), availability: g.data.status === 'full' ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock' },
   })),
@@ -107,7 +107,7 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
         <div class="section-head">
           <p class="eyebrow">Fixtures</p>
           <h2>Upcoming games</h2>
-          <p>Sign up solo. Partners rotate every round, and points count towards your own total.</p>
+          <p>Sign up solo and we'll pair you up. Every game lists its format, level and spots left.</p>
         </div>
         <ol class="board" id="board">
           {games.map((g) => {
@@ -126,7 +126,7 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
                   <p class="meta">
                     <span>{fmt(g.data.date, { hour: 'numeric', minute: '2-digit', hour12: true })}{g.data.endTime && ` – ${to12(g.data.endTime)}`}</span>
                     <span>
-                      {g.data.mapLink ? <a href={g.data.mapLink} target="_blank" rel="noopener">{g.data.venue}</a> : g.data.venue}, {g.data.area}
+                      {g.data.mapLink ? <a href={g.data.mapLink} target="_blank" rel="noopener">{g.data.venue}</a> : g.data.venue}{g.data.area && !g.data.venue.toLowerCase().includes(g.data.area.toLowerCase()) ? `, ${g.data.area}` : ''}
                     </span>
                   </p>
                   <p class="chips">
@@ -187,6 +187,7 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
         <div class="week-grid" id="wk-grid">
           <div class="wk wk-skel"></div><div class="wk wk-skel"></div><div class="wk wk-skel"></div><div class="wk wk-skel"></div>
         </div>
+        <div class="collage" id="wk-collage" hidden></div>
       </div>
     </section>
 
@@ -549,6 +550,30 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
               <span class="alb-t">${esc(a.title)}</span><span class="alb-d">${esc(dt(a.date))}${a.venue ? ' · ' + esc(a.venue) : ''}</span></a>`).join('');
           $('gallery').hidden = false;
         }).catch((e) => console.error(e));
+        // This week: collage from the latest match day album
+        const loadCollage = async () => {
+          const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+          try {
+            const a = (await fb.listAlbums()).find((x) => x.count > 0);
+            if (!a) { $('wk-collage').hidden = true; return; }
+            const items = (await fb.listAlbumItems(a.id)).filter((x) => x.thumb);
+            const pick = items.filter((x) => x.type === 'photo').slice(0, 4).concat(items.filter((x) => x.type === 'video').slice(0, 1));
+            while (pick.length < 5 && pick.length < items.length) { const nx = items.find((x) => !pick.includes(x)); if (!nx) break; pick.push(nx); }
+            if (!pick.length) { $('wk-collage').hidden = true; return; }
+            const dt = a.date ? new Date(a.date + 'T12:00:00+05:30').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) : '';
+            const more = a.count - pick.length;
+            $('wk-collage').innerHTML = `<div class="col-head"><div><span class="wk-k">Match day snapshot</span><h3>${esc(a.title)}</h3><span class="wk-sub">${esc(dt)}${a.venue ? ' · ' + esc(a.venue) : ''} · ${a.count} photos &amp; videos</span></div><a class="btn btn-solid" href="/gallery?a=${encodeURIComponent(a.id)}">Open album</a></div>
+              <a class="col-grid n${pick.length}" href="/gallery?a=${encodeURIComponent(a.id)}" aria-label="Open the ${esc(a.title)} album">${pick.map((it, i) => `<span class="col-cell c${i}"><img src="${esc(it.thumb)}" alt="" loading="lazy" />${it.type === 'video' ? '<span class="col-play">▶</span>' : ''}${i === pick.length - 1 && more > 0 ? `<span class="col-more">+${more}</span>` : ''}</span>`).join('')}</a>`;
+            $('wk-collage').hidden = false;
+          } catch (e) { console.error(e); $('wk-collage').hidden = true; }
+        };
+        fb.watchUser((u) => {
+          if (u) loadCollage();
+          else {
+            $('wk-collage').innerHTML = '<div class="col-locked"><span class="col-lock">🔒</span><div><strong>Match day snapshot</strong><span class="wk-sub">Photos and videos from this week\'s games are for Padel Culture players.</span></div><a class="btn btn-solid" href="/login?next=%2F%23this-week">Log in to see them</a></div>';
+            $('wk-collage').hidden = false;
+          }
+        });
         fb.watchUser((u) => {
           if (u) { $('alb-locked').hidden = true; loadAlbums(); }
           else { $('t-alb').innerHTML = ''; $('alb-locked').hidden = false; $('gallery').hidden = false; }
@@ -725,6 +750,26 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
   .week-grid :global(.wk-name) { font-weight: 600; font-size: 1rem; }
   .week-grid :global(.wk-sub) { font-size: 0.85rem; color: var(--mist); line-height: 1.45; }
   .week-grid :global(.wk-cta) { margin-top: 0.4rem; font-size: 0.85rem; font-weight: 600; color: var(--sage); }
+  .collage { margin-top: 1.4rem; display: grid; gap: 1rem; padding: 1.3rem; border: 1px solid var(--line); border-radius: 14px; background: var(--pine); }
+  .collage[hidden] { display: none; }
+  .collage :global(.col-head) { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 0.8rem 1.5rem; }
+  .collage :global(.col-head h3) { font-size: clamp(1.5rem, 3vw, 2rem); margin: 0.2rem 0; }
+  .collage :global(.wk-k) { font-size: 0.7rem; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--olive); }
+  .collage :global(.wk-sub) { display: block; font-size: 0.85rem; color: var(--mist); }
+  .collage :global(.col-grid) { display: grid; grid-template-columns: repeat(4, 1fr); grid-auto-rows: 9rem; gap: 0.5rem; text-decoration: none; }
+  .collage :global(.col-cell) { position: relative; overflow: hidden; border-radius: 10px; background: #12301d; }
+  .collage :global(.col-cell img) { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .3s; }
+  .collage :global(.col-grid:hover img) { transform: scale(1.03); }
+  .collage :global(.c0) { grid-column: span 2; grid-row: span 2; }
+  .collage :global(.n1 .c0) { grid-column: span 4; }
+  .collage :global(.n2 .c1) { grid-column: span 2; grid-row: span 2; }
+  .collage :global(.n3 .c1), .collage :global(.n3 .c2), .collage :global(.n4 .c3) { grid-column: span 2; }
+  .collage :global(.col-play) { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 2.6rem; height: 2.6rem; display: grid; place-items: center; border-radius: 50%; background: rgba(200,224,107,.92); color: #0B1F14; padding-left: 0.15rem; }
+  .collage :global(.col-more) { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(11,31,20,.6); color: #fff; font-family: var(--display); font-size: 2rem; }
+  .collage :global(.col-locked) { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.4rem; }
+  .collage :global(.col-locked > div) { flex: 1 1 16rem; display: grid; gap: 0.2rem; }
+  .collage :global(.col-lock) { font-size: 1.6rem; }
+  @media (max-width: 600px) { .collage :global(.col-grid) { grid-template-columns: repeat(2, 1fr); grid-auto-rows: 7rem; } .collage :global(.n1 .c0), .collage :global(.n2 .c1) { grid-column: span 2; } }
   @media (max-width: 960px) { .week-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
   @media (max-width: 480px) { .week-grid { grid-template-columns: 1fr; } }
   .hl { background: #0B1F14; color: #F2F6EC; }
@@ -762,7 +807,8 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
   .hl .btn-ghost { color: #F2F6EC; border-color: rgba(242,246,236,.5); }
   .hl .btn-ghost:hover { background: rgba(255,255,255,.1); }
   section[id], .fixture[id] { scroll-margin-top: 5rem; }
-  .fixture:target { background: var(--moss); box-shadow: inset 3px 0 0 var(--olive); }
+  .fixture:target { animation: spot 3s ease-out 1; border-radius: 10px; }
+  @keyframes spot { 0%, 40% { background: var(--moss); box-shadow: 0 0 0 14px var(--moss); } 100% { background: transparent; box-shadow: 0 0 0 14px transparent; } }
   .guide-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 2rem 4rem; align-items: start; }
   .g-tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.8rem; }
   .g-tab { font: 500 0.85rem var(--body); padding: 0.55rem 1rem; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--chalk); cursor: pointer; }
