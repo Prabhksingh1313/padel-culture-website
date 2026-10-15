@@ -32,27 +32,24 @@ export const CONFIDENCE = {
   sessions: 2,          // Padel Culture games needed to be Court-Proven
   restDays: 60,         // no game for this long: "Resting"
 };
-// How far a rating has been tested. Stored ratingStatus 'verified' now means "set by an organiser".
-//   Self-rated      questionnaire only, no Padel Culture games yet
-//   Organiser-rated set by an organiser, fewer than 2 games
+// How far a rating has been tested, from the number of Padel Culture games played.
+// (Stored ratingStatus 'verified' = set by an organiser; it only affects the engine, not the label.)
+//   Self-rated      no Padel Culture games yet
 //   Calibrating     1 game played
 //   Court-Proven    2 or more games (· Resting after 60 days without a game)
 export const STATUS_INFO = {
   'Self-rated': 'From the sign-up questionnaire. Not played a Padel Culture game yet.',
-  'Organiser-rated': 'Set by a Padel Culture organiser.',
   'Calibrating': 'Played 1 Padel Culture game. Still settling.',
   'Court-Proven': 'Played 2 or more Padel Culture games.',
 };
 export function confidenceLabel(doc, withResting = true) {
   if (!doc) return 'Self-rated';
   const n = doc.sessions || 0;
-  const ver = doc.status === 'verified' || doc.ratingStatus === 'verified';
   if (n >= CONFIDENCE.sessions) {
     const last = doc.lastSessionAt;
     if (withResting && typeof last === 'number' && Date.now() - last > CONFIDENCE.restDays * 864e5) return 'Court-Proven · Resting';
     return 'Court-Proven';
   }
-  if (ver) return 'Organiser-rated';
   return n === 1 ? 'Calibrating' : 'Self-rated';
 }
 export const isProven = (doc) => (doc && (doc.sessions || 0) >= CONFIDENCE.sessions);
