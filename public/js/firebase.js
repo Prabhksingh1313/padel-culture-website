@@ -137,6 +137,19 @@ export async function adminSetRating(uid, publicName, rating, tier, status) {
   await setDoc(doc(db, 'leaderboard', uid), { name: publicName, rating, tier, status, scale: 7, updatedAt: serverTimestamp() }, { merge: true });
 }
 
+// Organisers only: apply a host review. The review is kept on the private player record.
+export async function adminApplyHostReview(uid, publicName, review, res, status) {
+  const at = Date.now();
+  const batch = writeBatch(db);
+  batch.set(doc(db, 'players', uid), {
+    rating: res.after, tier: res.tier, scale: 7, ratedAt: serverTimestamp(), hostAdj: res.hostAdjAfter,
+    hostReviews: arrayUnion({ ...review, weighted: res.weighted, raw: res.raw, reliability: res.reliability, effective: res.effective, before: res.before, after: res.after, at }),
+    ratingHistory: arrayUnion({ r: res.after, s: status, at, by: 'host', sc: 7, d: res.effective, t: 'Host review' }),
+  }, { merge: true });
+  batch.set(doc(db, 'leaderboard', uid), { name: publicName, rating: res.after, tier: res.tier, status, scale: 7, updatedAt: serverTimestamp() }, { merge: true });
+  await batch.commit();
+}
+
 // Organisers only: apply one session's results to every player in it, in one batch.
 // results: [{ uid, name, after, tier, status, delta }]; session: { title, date, gameId, matches }
 export async function adminApplySession(results, session) {

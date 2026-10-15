@@ -109,7 +109,7 @@ const tiers = [
     const R = await import('/js/rating.js');
     const tierName = (r) => R.tierFor(r).name;
     const dateText = (ms) => new Date(ms).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-    const pointText = (p) => `${R.show1(p.r)} · ${tierName(p.r)} · ${p.s === 'verified' ? 'Court-Proven' : 'Calibrating'} · ${dateText(p.at)} · ${p.by === 'organiser' ? 'set by an organiser' : p.by === 'session' ? `after ${p.t || 'a session'} (${p.d >= 0 ? '+' : ''}${Number(p.d || 0).toFixed(2)})` : 'from the questionnaire'}`;
+    const pointText = (p) => `${R.show1(p.r)} · ${tierName(p.r)} · ${p.s === 'verified' ? 'Court-Proven' : 'Calibrating'} · ${dateText(p.at)} · ${p.by === 'organiser' ? 'set by an organiser' : p.by === 'host' ? `after a host review (${p.d >= 0 ? '+' : ''}${Number(p.d || 0).toFixed(2)})` : p.by === 'session' ? `after ${p.t || 'a session'} (${p.d >= 0 ? '+' : ''}${Number(p.d || 0).toFixed(2)})` : 'from the questionnaire'}`;
 
     function drawHistory(player) {
       let pts = Array.isArray(player.ratingHistory) ? player.ratingHistory.filter((p) => typeof p.r === 'number' && typeof p.at === 'number').map((p) => ({ ...p, r: R.normPoint(p) })) : [];
@@ -147,7 +147,7 @@ const tiers = [
       $('t-history-note').textContent = pts.length === 1
         ? 'This is your starting rating. A new point is added every time your rating changes after a game.'
         : `${change === 0 ? 'No change' : (change > 0 ? 'Up ' : 'Down ') + Math.abs(change).toFixed(1)} since ${dateText(t0)}, over ${pts.length} updates. Hover or tap a point for details.`;
-      $('t-history-rows').innerHTML = pts.slice().reverse().map((p) => `<tr><td>${dateText(p.at)}</td><td class="num">${R.show1(p.r)}</td><td>${esc(tierName(p.r))}</td><td>${p.s === 'verified' ? 'Court-Proven' : 'Calibrating'}</td><td>${p.by === 'organiser' ? 'Organiser' : p.by === 'session' ? esc(p.t || 'Session') : 'Questionnaire'}</td></tr>`).join('');
+      $('t-history-rows').innerHTML = pts.slice().reverse().map((p) => `<tr><td>${dateText(p.at)}</td><td class="num">${R.show1(p.r)}</td><td>${esc(tierName(p.r))}</td><td>${p.s === 'verified' ? 'Court-Proven' : 'Calibrating'}</td><td>${p.by === 'organiser' ? 'Organiser' : p.by === 'host' ? 'Host review' : p.by === 'session' ? esc(p.t || 'Session') : 'Questionnaire'}</td></tr>`).join('');
       const lastS = pts.slice().reverse().find((p) => p.by === 'session' && typeof p.w === 'number');
       if (lastS) {
         const pc = (x) => Math.round(x * 100) + '%';

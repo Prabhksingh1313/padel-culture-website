@@ -218,6 +218,33 @@ export function computeSession(matches, players, opts = {}) {
   return out;
 }
 
+// ---------- Hosting adjustment H ----------
+// A host scores five things from −2 (clearly below their displayed level) to +2 (clearly above).
+// raw = 0.6 × (weighted score / 2); effective = raw × (1 − reliability); total H capped at ±1.0.
+export const HOST = {
+  max: 0.6, cap: 1.0,
+  attrs: [
+    { id: 'technique', label: 'Technique', w: 0.25, hint: 'Stroke quality on both sides, volleys, overheads' },
+    { id: 'movement', label: 'Movement & positioning', w: 0.20, hint: 'Moves as a pair, recovers position, covers the middle' },
+    { id: 'shots', label: 'Shot selection', w: 0.20, hint: 'Right shot at the right time; few forcing errors' },
+    { id: 'walls', label: 'Wall play', w: 0.20, hint: 'Comfort and intent off back and side walls' },
+    { id: 'compete', label: 'Competitiveness vs level', w: 0.15, hint: 'How they fared against players of their displayed level' },
+  ],
+};
+// p: player doc { rating, ratingStatus, exposure, exposureAt, sessions, lastSessionAt, hostAdj }
+export function hostAdjust(scores, p, atMs) {
+  const weighted = HOST.attrs.reduce((s, a) => s + a.w * (Number(scores[a.id]) || 0), 0);
+  const raw = HOST.max * weighted / 2;
+  const rel = reliability(exposureAt(p, atMs), priorFor({ status: p.ratingStatus || p.status }));
+  const unc = raw * (1 - rel);
+  const prevH = Number(p.hostAdj) || 0;
+  const newH = Math.max(-HOST.cap, Math.min(HOST.cap, prevH + unc));
+  const effective = r2(newH - prevH);
+  const before = typeof p.rating === 'number' ? p.rating : START_RATING;
+  const after = r2(clamp(before + effective));
+  return { weighted: r2(weighted), raw: r2(raw), reliability: Math.round(rel * 100) / 100, effective, hostAdjAfter: r2(prevH + (after - before)), capped: Math.abs(prevH + unc) > HOST.cap, before, after, tier: tierFor(after).name };
+}
+
 export function displayName(full) {
   const parts = String(full || '').trim().split(/\s+/).map((w) => w.charAt(0).toUpperCase() + w.slice(1));
   if (!parts[0]) return 'Player';

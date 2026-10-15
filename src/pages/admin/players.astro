@@ -133,6 +133,28 @@ const games = (await getCollection('games')).map((g) => ({
           <div class="table-wrap"><table><thead><tr><th>Player</th><th class="num">Matches</th><th class="num">Points</th><th class="num">Share</th><th class="num">Expected</th><th class="num">Change</th><th class="num">Rating</th><th class="num">Reliability</th><th>Level</th></tr></thead><tbody id="sc-rows"></tbody></table></div>
           <div class="sc-actions"><button type="button" class="btn btn-solid" id="sc-apply">Apply and publish to leaderboard</button></div>
         </div>
+        <h2 class="bk-title">Host adjustment</h2>
+        <p class="muted how">After a session, score a player on five things from −2 (clearly below their rating) to +2 (clearly above). A full +2 review is worth +0.60, scaled down by the player's reliability: it matters most for new players and very little once they have plenty of results. A player's total host adjustment is capped at ±1.00.</p>
+        <div class="sess">
+          <label>Player<select id="hr-player"></select></label>
+          <label>Date<input id="hr-date" type="date" /></label>
+          <label>Host<input id="hr-host" placeholder="Your name" /></label>
+        </div>
+        <div class="sess hr-scores">
+          <label>Technique<select class="hr-score" data-attr="technique"><option value="2">+2</option><option value="1">+1</option><option value="0" selected>0</option><option value="-1">-1</option><option value="-2">-2</option></select></label>
+          <label>Movement &amp; positioning<select class="hr-score" data-attr="movement"><option value="2">+2</option><option value="1">+1</option><option value="0" selected>0</option><option value="-1">-1</option><option value="-2">-2</option></select></label>
+          <label>Shot selection<select class="hr-score" data-attr="shots"><option value="2">+2</option><option value="1">+1</option><option value="0" selected>0</option><option value="-1">-1</option><option value="-2">-2</option></select></label>
+          <label>Wall play<select class="hr-score" data-attr="walls"><option value="2">+2</option><option value="1">+1</option><option value="0" selected>0</option><option value="-1">-1</option><option value="-2">-2</option></select></label>
+          <label>Competitiveness vs level<select class="hr-score" data-attr="compete"><option value="2">+2</option><option value="1">+1</option><option value="0" selected>0</option><option value="-1">-1</option><option value="-2">-2</option></select></label>
+        </div>
+        <div class="sess"><label>Notes (private)<input id="hr-notes" placeholder="Optional" /></label></div>
+        <div class="sc-actions"><button type="button" class="btn btn-solid" id="hr-preview">Preview adjustment</button></div>
+        <p class="err" id="hr-err" hidden></p>
+        <div id="hr-out" hidden>
+          <div class="table-wrap"><table><thead><tr><th>Player</th><th class="num">Weighted score</th><th class="num">Before reliability</th><th class="num">Reliability</th><th class="num">Adjustment</th><th class="num">Rating</th><th>Level</th></tr></thead><tbody id="hr-rows"></tbody></table></div>
+          <div class="sc-actions"><button type="button" class="btn btn-solid" id="hr-apply">Apply and publish to leaderboard</button></div>
+        </div>
+        <div id="hr-history" class="bookings"></div>
         <h2 class="bk-title">Past sessions</h2>
         <div id="sc-history" class="bookings"><p class="muted">Loading…</p></div>
       </div>
@@ -598,6 +620,48 @@ const games = (await getCollection('games')).map((g) => ({
       $('sc-matches').innerHTML = '';
       for (let i = 0; i < 4; i++) addMatch();
       loadSessions();
+      $('hr-player').innerHTML = playerOptions('');
+      if (!$('hr-date').value) $('hr-date').value = $('sc-date').value;
+      renderHostHistory();
+    }
+    let hostPreview = null;
+    const hrScores = () => Object.fromEntries([...document.querySelectorAll('.hr-score')].map((s) => [s.dataset.attr, Number(s.value)]));
+    ['hr-player', 'hr-date'].forEach((id) => $(id).addEventListener('change', () => { $('hr-out').hidden = true; }));
+    document.querySelectorAll('.hr-score').forEach((s) => s.addEventListener('change', () => { $('hr-out').hidden = true; }));
+    $('hr-preview').addEventListener('click', () => {
+      $('hr-err').hidden = true;
+      const x = players.find((p) => p.id === $('hr-player').value);
+      if (!x) { $('hr-err').textContent = 'Choose a player.'; $('hr-err').hidden = false; return; }
+      const atMs = Date.parse($('hr-date').value + 'T23:00:00+05:30') || Date.now();
+      const res = R.hostAdjust(hrScores(), x, atMs);
+      $('hr-rows').innerHTML = `<tr><td>${esc(x.name)}${typeof x.rating !== 'number' ? ' <span class="muted">(unrated, from 2.00)</span>' : ''}</td><td class="num">${res.weighted > 0 ? '+' : ''}${res.weighted.toFixed(2)}</td><td class="num">${res.raw > 0 ? '+' : ''}${res.raw.toFixed(2)}</td><td class="num">${Math.round(res.reliability * 100)}%</td><td class="num ${res.effective > 0 ? 'up' : res.effective < 0 ? 'down' : ''}">${res.effective > 0 ? '+' : ''}${res.effective.toFixed(2)}${res.capped ? ' <span class="muted">(±1.00 cap)</span>' : ''}</td><td class="num">${res.before.toFixed(2)} → <strong>${res.after.toFixed(2)}</strong></td><td>${esc(res.tier)}</td></tr>`;
+      hostPreview = { x, res, review: { date: $('hr-date').value, host: $('hr-host').value.trim(), notes: $('hr-notes').value.trim(), scores: hrScores() } };
+      $('hr-out').hidden = false;
+      $('hr-apply').disabled = res.effective === 0;
+      $('hr-apply').textContent = res.effective === 0 ? 'No change to apply' : 'Apply and publish to leaderboard';
+    });
+    $('hr-apply').addEventListener('click', async () => {
+      if (!hostPreview) return;
+      const { x, res, review } = hostPreview;
+      const btn = $('hr-apply'); btn.disabled = true; btn.textContent = 'Saving…';
+      const status = x.ratingStatus || 'provisional';
+      try {
+        await fb.adminApplyHostReview(x.id, displayName(x.name), review, res, status);
+        Object.assign(x, { rating: res.after, tier: res.tier, hostAdj: res.hostAdjAfter, hostReviews: [...(x.hostReviews || []), { ...review, effective: res.effective, before: res.before, after: res.after, at: Date.now() }] });
+        render(); renderHostHistory();
+        hostPreview = null; btn.textContent = 'Saved ✓';
+        note(`Host review saved: ${x.name} ${res.effective > 0 ? '+' : ''}${res.effective.toFixed(2)} → ${res.after.toFixed(2)}.`);
+        document.querySelectorAll('.hr-score').forEach((s) => (s.value = '0')); $('hr-notes').value = '';
+        $('hr-player').innerHTML = playerOptions('');
+      } catch (ex) {
+        console.error(ex);
+        btn.disabled = false; btn.textContent = 'Apply and publish to leaderboard';
+        $('hr-err').textContent = `Couldn't save the review. (${(ex && ex.code) || 'unknown'})`; $('hr-err').hidden = false;
+      }
+    });
+    function renderHostHistory() {
+      const rows = players.flatMap((p) => (p.hostReviews || []).map((r) => ({ ...r, name: p.name }))).sort((a, b) => (b.at || 0) - (a.at || 0));
+      $('hr-history').innerHTML = rows.length ? `<h3>Past host reviews</h3><ol>${rows.map((r) => `<li>${esc(r.name)} · ${esc(r.date || '')}${r.host ? ' · ' + esc(r.host) : ''} · ${r.effective > 0 ? '+' : ''}${Number(r.effective).toFixed(2)} (${Number(r.before).toFixed(2)} → ${Number(r.after).toFixed(2)})${r.notes ? ' · ' + esc(r.notes) : ''}</li>`).join('')}</ol>` : '';
     }
     $('sc-add').addEventListener('click', () => addMatch());
     $('sc-format').addEventListener('change', () => { $('sc-tier-l').hidden = $('sc-format').value !== 'tournament'; $('sc-out').hidden = true; });
@@ -818,6 +882,7 @@ const games = (await getCollection('games')).map((g) => ({
   .how { max-width: 50rem; font-size: 0.9rem; line-height: 1.6; }
   .sess { display: flex; flex-wrap: wrap; gap: 1rem; }
   .sess label { display: grid; gap: 0.35rem; flex: 1 1 14rem; }
+  .hr-scores label { flex: 1 1 10rem; }
   .sess select { font: 400 1rem var(--body); color: var(--chalk); background: var(--pine); border: 1px solid var(--line); border-radius: 6px; padding: 0.7rem 0.9rem; }
   .matches-head, .matches :global(.match) { display: grid; grid-template-columns: minmax(0, 2fr) 4.5rem 1.6rem 4.5rem minmax(0, 2fr) 1.5rem; gap: 0.6rem; align-items: center; }
   .matches-head { font-size: 0.7rem; letter-spacing: 0.14em; text-transform: uppercase; color: var(--olive); font-weight: 600; }
