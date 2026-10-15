@@ -121,7 +121,7 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
         <div class="rating-card" id="t-card" hidden>
           <span class="rc-label">Your Padel Culture Rating</span>
           <span class="rc-tier" id="t-tier"></span>
-          <span class="rc-row"><span class="rc-num" id="t-rating"></span><span class="badge" id="t-status">Calibrating</span></span>
+          <span class="rc-row"><span class="rc-num" id="t-rating"></span><span class="badge" id="t-status">Self-rated</span></span>
           <span class="rc-blurb" id="t-blurb"></span>
         </div>
         <p class="muted" id="t-capnote" hidden>The questionnaire gives a starting point. Every session you play moves your rating, and Advanced and Elite are only earned on court.</p>
@@ -357,7 +357,7 @@ const joinHref = site.whatsappGroupLink || (waBase ? `${waBase}?text=${encodeURI
       $('t-welcome').textContent = first ? `You're in, ${first}` : "You're in";
       $('t-tier').textContent = R.levelWithRange(t);
       $('t-rating').textContent = R.show1(rating);
-      $('t-status').textContent = status === 'verified' ? 'Court-Proven' : 'Calibrating';
+      $('t-status').textContent = R.confidenceLabel({ sessions: (me.player && me.player.sessions) || 0, status });
       $('t-blurb').textContent = t.blurb;
       $('t-card').hidden = false;
       $('t-capnote').hidden = !capped;

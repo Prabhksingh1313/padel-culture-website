@@ -29,19 +29,33 @@ export const playtomicText = () => '';
 // ---------- How a rating is shown ----------
 export const show1 = (r) => Number(r).toFixed(1);   // players see one decimal
 export const CONFIDENCE = {
-  sessions: 5,          // sessions needed...
-  partners: 6,          // ...with this many different partners
-  restDays: 60,         // no session for this long: "Resting"
+  sessions: 2,          // Padel Culture games needed to be Court-Proven
+  restDays: 60,         // no game for this long: "Resting"
 };
-// status: 'provisional' | 'verified' (stored); shown as Calibrating / Court-Proven
-export function confidenceLabel(doc) {
-  if (!doc) return 'Calibrating';
-  const proven = doc.status === 'verified' || doc.ratingStatus === 'verified';
-  if (!proven) return 'Calibrating';
-  const last = doc.lastSessionAt;
-  if (typeof last === 'number' && Date.now() - last > CONFIDENCE.restDays * 864e5) return 'Court-Proven · Resting';
-  return 'Court-Proven';
+// How far a rating has been tested. Stored ratingStatus 'verified' now means "set by an organiser".
+//   Self-rated      questionnaire only, no Padel Culture games yet
+//   Organiser-rated set by an organiser, fewer than 2 games
+//   Calibrating     1 game played
+//   Court-Proven    2 or more games (· Resting after 60 days without a game)
+export const STATUS_INFO = {
+  'Self-rated': 'From the sign-up questionnaire. Not played a Padel Culture game yet.',
+  'Organiser-rated': 'Set by a Padel Culture organiser.',
+  'Calibrating': 'Played 1 Padel Culture game. Still settling.',
+  'Court-Proven': 'Played 2 or more Padel Culture games.',
+};
+export function confidenceLabel(doc, withResting = true) {
+  if (!doc) return 'Self-rated';
+  const n = doc.sessions || 0;
+  const ver = doc.status === 'verified' || doc.ratingStatus === 'verified';
+  if (n >= CONFIDENCE.sessions) {
+    const last = doc.lastSessionAt;
+    if (withResting && typeof last === 'number' && Date.now() - last > CONFIDENCE.restDays * 864e5) return 'Court-Proven · Resting';
+    return 'Court-Proven';
+  }
+  if (ver) return 'Organiser-rated';
+  return n === 1 ? 'Calibrating' : 'Self-rated';
 }
+export const isProven = (doc) => (doc && (doc.sessions || 0) >= CONFIDENCE.sessions);
 // Form: one beat per recent session. ▲ beat expectation, ● on par, ▼ below.
 export function formBeat(share, expected) {
   const d = share - expected;
@@ -133,7 +147,7 @@ export const ENGINE = {
   kCred: 8,           // exposure at which reliability = 50%
   halfLife: 180,      // days; old matches count half after this long
   priorQuestionnaire: 1,  // n0 for questionnaire ratings
-  priorVerified: 6,       // n0 for organiser-set / Court-Proven ratings
+  priorVerified: 6,       // n0 for organiser-set ratings
   orfFloor: 0.5,
   infoCap: 1.25,
   legacyExposurePerSession: 4.2,  // estimate for players rated before v2 (7 Americano matches × 0.6)
@@ -212,7 +226,7 @@ export function computeSession(matches, players, opts = {}) {
     r.expShare = r.played ? r.exp / r.played : 0;
     r.tier = tierFor(r.after).name;
     r.partnersAfter = new Set([...(players[r.uid].partners || []), ...r.partnerSet]).size;
-    r.status = r.prevStatus === 'verified' || (r.sessions + 1 >= CONFIDENCE.sessions && r.partnersAfter >= CONFIDENCE.partners) ? 'verified' : 'provisional';
+    r.status = r.prevStatus;   // 'verified' = organiser-set; Court-Proven comes from the session count
     r.beat = formBeat(r.share, r.expShare);
   }
   return out;

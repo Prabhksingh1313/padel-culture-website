@@ -180,7 +180,7 @@ const games = (await getCollection('games')).map((g) => ({
     const { tierFor, displayName } = R;
     const note = (msg) => { $('t-note').textContent = msg || ''; $('t-note').hidden = !msg; };
     const last10 = (v) => String(v ?? '').replace(/\D/g, '').slice(-10);
-    const statusLabel = (p) => (p.ratingStatus === 'verified' ? 'Court-Proven' : 'Calibrating');
+    const statusLabel = (p) => R.confidenceLabel({ ...p, status: p.ratingStatus });
 
     async function setRating(p, value, status) {
       const rating = Math.round(value * 100) / 100;
@@ -193,7 +193,7 @@ const games = (await getCollection('games')).map((g) => ({
       const rated = typeof p.rating === 'number';
       if (editing === p.id) {
         return `<input id="e-rating" type="number" min="0" max="7" step="0.01" value="${rated ? p.rating : ''}" aria-label="Rating, 0 to 7" />
-          <select id="e-status" aria-label="Status"><option value="verified"${p.ratingStatus === 'verified' ? ' selected' : ''}>Court-Proven</option><option value="provisional"${p.ratingStatus === 'verified' ? '' : ' selected'}>Calibrating</option></select>
+          <select id="e-status" aria-label="Status"><option value="verified"${p.ratingStatus === 'verified' ? ' selected' : ''}>Organiser-verified</option><option value="provisional"${p.ratingStatus === 'verified' ? '' : ' selected'}>Not verified</option></select>
           <button class="linkbtn" type="button" data-save="${esc(p.id)}">Save</button> <button class="linkbtn" type="button" data-cancel="1">Cancel</button>`;
       }
       return `${rated ? `${p.rating.toFixed(2)} · ${esc(p.tier)} · ${statusLabel(p)}` : '<span class="muted">Not rated</span>'} <button class="linkbtn" type="button" data-edit="${esc(p.id)}">Edit</button>`;
@@ -685,7 +685,7 @@ const games = (await getCollection('games')).map((g) => ({
       const pct = (x) => Math.round(x * 100) + '%';
       $('sc-rows').innerHTML = list.map((r) => {
         const x = byId[r.uid];
-        return `<tr><td>${esc(x.name)}${input[r.uid].unrated ? ' <span class="muted">(new, from 2.00)</span>' : ''}</td><td class="num">${r.matches}</td><td class="num">${r.won}/${r.played}</td><td class="num">${pct(r.share)}</td><td class="num">${pct(r.expShare)}</td><td class="num ${r.delta > 0 ? 'up' : r.delta < 0 ? 'down' : ''}">${r.delta > 0 ? '+' : ''}${r.delta.toFixed(2)}</td><td class="num">${r.before.toFixed(2)} → <strong>${r.after.toFixed(2)}</strong></td><td class="num">${pct(r.reliability)}</td><td>${esc(r.tier)} · ${r.status === 'verified' ? 'Court-Proven' : 'Calibrating'} <span class="muted">${R.FORM_SYMBOL[r.beat]}</span></td></tr>`;
+        return `<tr><td>${esc(x.name)}${input[r.uid].unrated ? ' <span class="muted">(new, from 2.00)</span>' : ''}</td><td class="num">${r.matches}</td><td class="num">${r.won}/${r.played}</td><td class="num">${pct(r.share)}</td><td class="num">${pct(r.expShare)}</td><td class="num ${r.delta > 0 ? 'up' : r.delta < 0 ? 'down' : ''}">${r.delta > 0 ? '+' : ''}${r.delta.toFixed(2)}</td><td class="num">${r.before.toFixed(2)} → <strong>${r.after.toFixed(2)}</strong></td><td class="num">${pct(r.reliability)}</td><td>${esc(r.tier)} · ${R.confidenceLabel({ sessions: r.sessions + 1, status: r.status })} <span class="muted">${R.FORM_SYMBOL[r.beat]}</span></td></tr>`;
       }).join('');
       lastPreview = { matches, list, opts };
       $('sc-out').hidden = false;

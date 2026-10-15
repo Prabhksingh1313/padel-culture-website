@@ -22,7 +22,7 @@ const tiers = [
       <div class="lb-intro">
         <p class="eyebrow">Padel Culture Rating</p>
         <h1>Leaderboard</h1>
-        <p>The Padel Culture Rating runs from 0 to 7, the same range as Playtomic, so your Playtomic level means something here too. A short questionnaire sets where you start. After that, every session moves it, based on the points you win against what was expected from your partners' and opponents' levels. It's Calibrating until you've played 5 sessions with 6 different partners, then it's Court-Proven.</p>
+        <p>The Padel Culture Rating runs from 0 to 7, the same range as Playtomic, so your Playtomic level means something here too. A short questionnaire sets where you start. After that, every session moves it, based on the points you win against what was expected from your partners' and opponents' levels. Next to every rating you'll see how far it has been tested: Self-rated (from the questionnaire, no Padel Culture games yet), Calibrating (1 game played), Court-Proven (2 or more games), or Organiser-rated (set by one of us).</p>
         <p class="have" id="t-have">Already registered? <a href="/join?next=/leaderboard">Log in to see your rank</a></p>
       </div>
       <div class="me" id="t-me" hidden>
@@ -100,7 +100,7 @@ const tiers = [
             <td><span class="chip">${esc(r.tier)}</span></td>
             <td class="num">${R.show1(r.rating)}</td>
             <td><span class="form">${(r.form || []).slice().reverse().map((b) => `<i class="f-${b}">${R.FORM_SYMBOL[b] || ''}</i>`).join('') || '<span class="muted">–</span>'}</span></td>
-            <td><span class="status ${r.status === 'verified' ? 'ok' : ''}">${R.confidenceLabel(r)}</span></td>
+            <td><span class="status ${R.isProven(r) ? 'ok' : ''}">${R.confidenceLabel(r)}</span></td>
           </tr>`).join('')
         : `<tr><td colspan="6" class="muted">${rows.length ? 'No players in this tier yet.' : 'No ratings yet. <a href="/join">Be the first to get rated.</a>'}</td></tr>`;
     }
@@ -109,7 +109,7 @@ const tiers = [
     const R = await import('/js/rating.js');
     const tierName = (r) => R.tierFor(r).name;
     const dateText = (ms) => new Date(ms).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-    const pointText = (p) => `${R.show1(p.r)} · ${tierName(p.r)} · ${p.s === 'verified' ? 'Court-Proven' : 'Calibrating'} · ${dateText(p.at)} · ${p.by === 'organiser' ? 'set by an organiser' : p.by === 'host' ? `after a host review (${p.d >= 0 ? '+' : ''}${Number(p.d || 0).toFixed(2)})` : p.by === 'session' ? `after ${p.t || 'a session'} (${p.d >= 0 ? '+' : ''}${Number(p.d || 0).toFixed(2)})` : 'from the questionnaire'}`;
+    const pointText = (p) => `${R.show1(p.r)} · ${tierName(p.r)} · ${R.confidenceLabel({ sessions: p.n, status: p.s }, false)} · ${dateText(p.at)} · ${p.by === 'organiser' ? 'set by an organiser' : p.by === 'host' ? `after a host review (${p.d >= 0 ? '+' : ''}${Number(p.d || 0).toFixed(2)})` : p.by === 'session' ? `after ${p.t || 'a session'} (${p.d >= 0 ? '+' : ''}${Number(p.d || 0).toFixed(2)})` : 'from the questionnaire'}`;
 
     function drawHistory(player) {
       let pts = Array.isArray(player.ratingHistory) ? player.ratingHistory.filter((p) => typeof p.r === 'number' && typeof p.at === 'number').map((p) => ({ ...p, r: R.normPoint(p) })) : [];
@@ -118,6 +118,7 @@ const tiers = [
         pts = [{ r: R.normRating(player), s: player.ratingStatus || 'provisional', at, by: 'questionnaire' }];
       }
       if (!pts.length) { $('s-history').hidden = true; return; }
+      { let n = 0; pts.forEach((p) => { if (p.by === 'session') n++; p.n = n; }); }
       pts = pts.slice().sort((a, b) => a.at - b.at);
       const W = 640, H = 220, L = 34, R = 52, T = 14, B = 30;
       const rs = pts.map((p) => p.r);
@@ -147,7 +148,7 @@ const tiers = [
       $('t-history-note').textContent = pts.length === 1
         ? 'This is your starting rating. A new point is added every time your rating changes after a game.'
         : `${change === 0 ? 'No change' : (change > 0 ? 'Up ' : 'Down ') + Math.abs(change).toFixed(1)} since ${dateText(t0)}, over ${pts.length} updates. Hover or tap a point for details.`;
-      $('t-history-rows').innerHTML = pts.slice().reverse().map((p) => `<tr><td>${dateText(p.at)}</td><td class="num">${R.show1(p.r)}</td><td>${esc(tierName(p.r))}</td><td>${p.s === 'verified' ? 'Court-Proven' : 'Calibrating'}</td><td>${p.by === 'organiser' ? 'Organiser' : p.by === 'host' ? 'Host review' : p.by === 'session' ? esc(p.t || 'Session') : 'Questionnaire'}</td></tr>`).join('');
+      $('t-history-rows').innerHTML = pts.slice().reverse().map((p) => `<tr><td>${dateText(p.at)}</td><td class="num">${R.show1(p.r)}</td><td>${esc(tierName(p.r))}</td><td>${R.confidenceLabel({ sessions: p.n, status: p.s }, false)}</td><td>${p.by === 'organiser' ? 'Organiser' : p.by === 'host' ? 'Host review' : p.by === 'session' ? esc(p.t || 'Session') : 'Questionnaire'}</td></tr>`).join('');
       const lastS = pts.slice().reverse().find((p) => p.by === 'session' && typeof p.w === 'number');
       if (lastS) {
         const pc = (x) => Math.round(x * 100) + '%';

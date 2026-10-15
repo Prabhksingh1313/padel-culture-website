@@ -521,7 +521,7 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
         const title = nextRow.querySelector('.what h3') ? nextRow.querySelector('.what h3').textContent : 'Next game';
         cards.push({ k: 'Next game', big: `${taken}/${spots}`, name: title, sub: taken >= spots ? 'Full · join the waitlist' : `${spots - taken} spot${spots - taken === 1 ? '' : 's'} left`, href: '#games', cta: taken >= spots ? 'Join waitlist' : 'Book now' });
       }
-      const proven = list.filter((r) => r.status === 'verified').length;
+      const proven = list.filter((r) => (r.sessions || 0) >= 2).length;
       cards.push({ k: 'The community', big: String(list.length), name: `rated player${list.length === 1 ? '' : 's'}`, sub: proven ? `${proven} Court-Proven` : 'Get rated in 2 minutes', href: list.length ? '/leaderboard' : '/join', cta: list.length ? 'See the leaderboard' : 'Get your rating' });
       if (!climber && !star && !streak.length) cards.splice(cards.length - 1, 0, { k: 'Coming up', big: '▲', name: 'Weekly highlights', sub: 'Biggest climber and player of the session appear here after the next rated session.' });
       $('wk-grid').innerHTML = cards.slice(0, 4).map((c) => `<${c.href ? `a href="${c.href}"` : 'div'} class="wk">
