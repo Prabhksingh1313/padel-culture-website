@@ -200,6 +200,10 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
           <a class="btn btn-ghost" href="/gallery">All albums →</a>
         </div>
         <div class="alb-row" id="t-alb"></div>
+        <div class="alb-locked" id="alb-locked" hidden>
+          <p>🔒 Match day photos and videos are for Padel Culture players. Log in to see and download them.</p>
+          <a class="btn btn-play" href="/login?next=%2Fgallery">Log in to view</a>
+        </div>
         <p class="hl-cta"><a class="btn btn-solid" href="#games">Book the next one</a></p>
       </div>
     </section>
@@ -535,7 +539,7 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
       try {
         const fb = await import('/js/firebase.js');
         fbm = fb;
-        fb.listAlbums().then((albums) => {
+        const loadAlbums = () => fb.listAlbums().then((albums) => {
           const list = albums.filter((a) => a.count > 0).slice(0, 4);
           if (!list.length) return;
           const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -545,6 +549,10 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
               <span class="alb-t">${esc(a.title)}</span><span class="alb-d">${esc(dt(a.date))}${a.venue ? ' · ' + esc(a.venue) : ''}</span></a>`).join('');
           $('gallery').hidden = false;
         }).catch((e) => console.error(e));
+        fb.watchUser((u) => {
+          if (u) { $('alb-locked').hidden = true; loadAlbums(); }
+          else { $('t-alb').innerHTML = ''; $('alb-locked').hidden = false; $('gallery').hidden = false; }
+        });
         const RT = await import('/js/rating.js');
         const lbPromise = fb.listLeaderboard();
         Promise.all([lbPromise, fb.listGameCounts().catch(() => ({}))]).then(([raw, counts]) => renderWeek(raw, counts, RT)).catch((e) => { console.error(e); renderWeek([], {}, RT); });
@@ -732,7 +740,10 @@ function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!
   .alb-row :global(.hl-chip) { position: absolute; right: 0.6rem; bottom: 0.6rem; padding: 0.25rem 0.65rem; border-radius: 999px; background: rgba(11,31,20,.75); color: #fff; font-size: 0.75rem; }
   .alb-row :global(.alb-t) { font-family: var(--display); font-size: 1.4rem; }
   .alb-row :global(.alb-d) { font-size: 0.85rem; color: rgba(242,246,236,.7); }
-  .hl[hidden] { display: none; }
+  .hl[hidden], .alb-locked[hidden] { display: none; }
+  .alb-locked { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 1rem; padding: 1.4rem; border: 1px solid rgba(242,246,236,.25); border-radius: 12px; }
+  .alb-locked p { color: rgba(242,246,236,.9); }
+  .btn-play { background: #C8E06B; border-color: #C8E06B; color: #0B1F14; }
   .hl-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; }
   .hl-tag { font: 500 0.82rem var(--body); padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(242,246,236,.3); background: transparent; color: #F2F6EC; cursor: pointer; }
   .hl-tag[aria-pressed="true"] { background: #C8E06B; border-color: #C8E06B; color: #0B1F14; }

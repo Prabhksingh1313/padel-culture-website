@@ -16,6 +16,14 @@ import fb from '../data/firebase.json';
       <div class="albums" id="t-albums"><p class="muted">Loading…</p></div>
     </section>
 
+    <!-- Logged out -->
+    <section id="v-locked" class="locked" hidden>
+      <span class="lock" aria-hidden="true">🔒</span>
+      <h2>Members only</h2>
+      <p>Match day photos and videos are only for Padel Culture players. Log in to see and download them.</p>
+      <div class="a-acts"><a class="btn btn-solid" id="b-login" href="/login">Log in</a><a class="btn btn-ghost" href="/join">Join as a player</a></div>
+    </section>
+
     <!-- One album -->
     <section id="v-album" hidden>
       <a class="back" href="/gallery">← All albums</a>
@@ -60,7 +68,20 @@ import fb from '../data/firebase.json';
     if (!cfg.apiKey) { $('t-albums').innerHTML = '<p class="muted">The gallery opens soon.</p>'; }
     else {
       const fb = await import('/js/firebase.js');
-      if (albumId) showAlbum(fb, albumId); else showList(fb);
+      let started = false;
+      fb.watchUser((user) => {
+        if (!user) {
+          $('t-albums').innerHTML = '';
+          $('v-album').hidden = true;
+          $('v-locked').hidden = false;
+          $('b-login').href = '/login?next=' + encodeURIComponent(location.pathname + location.search);
+          return;
+        }
+        $('v-locked').hidden = true;
+        if (started) return;
+        started = true;
+        if (albumId) showAlbum(fb, albumId); else showList(fb);
+      });
     }
 
     async function showList(fb) {
@@ -159,6 +180,11 @@ import fb from '../data/firebase.json';
   .albums :global(.cover-blank), .grid :global(.cover-blank) { position: absolute; inset: 0; background: radial-gradient(120% 80% at 50% 20%, #24452b, #0B1F14); }
   .albums :global(.cnt) { position: absolute; right: 0.6rem; bottom: 0.6rem; padding: 0.25rem 0.6rem; border-radius: 999px; background: rgba(11,31,20,.75); color: #fff; font-size: 0.75rem; }
   .albums :global(.a-title) { font-family: var(--display); font-size: 1.5rem; }
+  .locked { display: grid; justify-items: center; text-align: center; gap: 0.8rem; padding: 3rem 1.5rem; border: 1px solid var(--line); border-radius: 14px; background: var(--pine); }
+  .locked[hidden] { display: none; }
+  .locked .lock { font-size: 2rem; }
+  .locked h2 { font-size: 2rem; }
+  .locked p { color: var(--mist); max-width: 30rem; }
   .back { color: var(--sage); font-size: 0.9rem; }
   .a-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 1rem 2rem; margin: 0.6rem 0 1.4rem; }
   .a-acts { display: flex; flex-wrap: wrap; gap: 0.6rem; }

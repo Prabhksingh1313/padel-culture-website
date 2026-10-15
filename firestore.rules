@@ -108,10 +108,10 @@ service cloud.firestore {
 
     // Match day gallery: everyone can view, organisers upload.
     match /albums/{aid} {
-      allow read: if true;
+      allow read: if signedIn();
       allow write: if isAdmin();
       match /items/{iid} {
-        allow read: if true;
+        allow read: if signedIn();
         allow write: if isAdmin();
       }
     }

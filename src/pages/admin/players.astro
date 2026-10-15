@@ -99,7 +99,7 @@ const games = (await getCollection('games')).map((g) => ({
 
       <div class="tabpanel" id="tab-gallery" hidden>
         <h1>Gallery</h1>
-        <p class="muted how">Make an album for each game, then add the photos and videos straight from your phone or laptop. Everyone can view and download them at <a href="/gallery" target="_blank" rel="noopener">padelculture.in/gallery</a>, so you can share one link instead of sending files.</p>
+        <p class="muted how">Make an album for each game, then add the photos and videos straight from your phone or laptop. Logged-in players can view and download them at <a href="/gallery" target="_blank" rel="noopener">padelculture.in/gallery</a>; everyone else is asked to log in. Share one album link instead of sending files.</p>
         <form class="sess" id="g-new">
           <label>Game<select id="g-game"></select></label>
           <label>Album name<input id="g-title" required placeholder="e.g. Thursday Night Americano" /></label>
