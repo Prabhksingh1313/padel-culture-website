@@ -7,8 +7,11 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
 import {
   getFirestore, doc, getDoc, setDoc, collection, getDocs, query, orderBy, where, serverTimestamp,
-  runTransaction, arrayUnion, deleteDoc, writeBatch, increment,
+  runTransaction, arrayUnion, deleteDoc, writeBatch, increment, addDoc, updateDoc,
 } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+import {
+  getStorage, ref as sRef, uploadBytesResumable, uploadBytes, getDownloadURL, deleteObject,
+} from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js';
 
 const config = JSON.parse(document.getElementById('fb-config').textContent);
 export const ready = Boolean(config.apiKey);
@@ -29,6 +32,8 @@ if (ready) {
   db = getFirestore(app);
 }
 export { auth, db };
+let storage;
+const st = () => (storage ||= getStorage(app));
 
 export function watchUser(cb) {
   if (!ready) return cb(null);
@@ -260,6 +265,101 @@ export async function joinWaitlist(user, name, gameId) {
 }
 export async function leaveWaitlist(uid, gameId) {
   await deleteDoc(doc(db, 'waitlist', bookingId(gameId, uid)));
+}
+
+// ---------- Match day gallery ----------
+// albums/{id}: { title, date (YYYY-MM-DD), venue, gameId, cover, count, createdAt }
+// albums/{id}/items/{itemId}: { type: 'photo'|'video', url, thumb, name, size, path, thumbPath, createdAt }
+export async function listAlbums() {
+  const snap = await getDocs(query(collection(db, 'albums'), orderBy('date', 'desc')));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+export async function getAlbum(id) {
+  const snap = await getDoc(doc(db, 'albums', id));
+  return snap.exists() ? { id, ...snap.data() } : null;
+}
+export async function listAlbumItems(id) {
+  const snap = await getDocs(query(collection(db, 'albums', id, 'items'), orderBy('createdAt', 'asc')));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+export async function adminCreateAlbum(data) {
+  const ref = await addDoc(collection(db, 'albums'), { ...data, cover: '', count: 0, createdAt: serverTimestamp() });
+  return ref.id;
+}
+export async function adminDeleteAlbum(id) {
+  const items = await listAlbumItems(id);
+  for (const it of items) await adminDeleteItem(id, it, true);
+  await deleteDoc(doc(db, 'albums', id));
+}
+export async function adminDeleteItem(albumId, it, skipCount) {
+  for (const p of [it.path, it.thumbPath]) if (p) { try { await deleteObject(sRef(st(), p)); } catch (e) { console.warn(e); } }
+  await deleteDoc(doc(db, 'albums', albumId, 'items', it.id));
+  if (!skipCount) {
+    const a = await getAlbum(albumId);
+    const patch = { count: increment(-1) };
+    if (a && a.cover === it.thumb) {
+      const rest = (await listAlbumItems(albumId)).find((x) => x.thumb);
+      patch.cover = rest ? rest.thumb : '';
+    }
+    await updateDoc(doc(db, 'albums', albumId), patch);
+  }
+}
+
+// Makes a small JPEG preview (max 900px) of a photo or of a video's first second.
+async function makeThumb(file) {
+  const draw = (src, w, h) => {
+    const scale = Math.min(1, 900 / Math.max(w, h));
+    const c = document.createElement('canvas');
+    c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+    c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+    return new Promise((res) => c.toBlob(res, 'image/jpeg', 0.8));
+  };
+  try {
+    if (file.type.startsWith('image/')) {
+      const bmp = await createImageBitmap(file);
+      return await draw(bmp, bmp.width, bmp.height);
+    }
+    if (file.type.startsWith('video/')) {
+      const url = URL.createObjectURL(file);
+      const v = document.createElement('video');
+      v.muted = true; v.playsInline = true; v.preload = 'auto'; v.src = url;
+      await new Promise((res, rej) => { v.onloadeddata = res; v.onerror = rej; setTimeout(rej, 15000); });
+      v.currentTime = Math.min(1, (v.duration || 2) / 2);
+      await new Promise((res, rej) => { v.onseeked = res; setTimeout(rej, 15000); });
+      const blob = await draw(v, v.videoWidth, v.videoHeight);
+      URL.revokeObjectURL(url);
+      return blob;
+    }
+  } catch (e) { console.warn('thumbnail failed', e); }
+  return null;
+}
+
+// Uploads one photo or video to an album. onProgress(0..1).
+export async function adminUploadToAlbum(albumId, file, onProgress = () => {}) {
+  const type = file.type.startsWith('video/') ? 'video' : 'photo';
+  const itemRef = doc(collection(db, 'albums', albumId, 'items'));
+  const safe = (file.name || type).replace(/[^\w.\-]+/g, '_').slice(-80);
+  const path = `albums/${albumId}/${itemRef.id}-${safe}`;
+  const thumbBlob = await makeThumb(file);
+  const task = uploadBytesResumable(sRef(st(), path), file, {
+    contentType: file.type || undefined,
+    contentDisposition: `attachment; filename="padel-culture-${safe}"`,
+    cacheControl: 'public, max-age=31536000',
+  });
+  await new Promise((res, rej) => task.on('state_changed', (s) => onProgress(s.bytesTransferred / (s.totalBytes || 1)), rej, res));
+  const url = await getDownloadURL(task.snapshot.ref);
+  let thumb = type === 'photo' ? url : '', thumbPath = '';
+  if (thumbBlob) {
+    thumbPath = `albums/${albumId}/thumbs/${itemRef.id}.jpg`;
+    const t = await uploadBytes(sRef(st(), thumbPath), thumbBlob, { contentType: 'image/jpeg', cacheControl: 'public, max-age=31536000' });
+    thumb = await getDownloadURL(t.ref);
+  }
+  await setDoc(itemRef, { type, url, thumb, name: file.name || safe, size: file.size, path, thumbPath, createdAt: serverTimestamp() });
+  const a = await getAlbum(albumId);
+  const patch = { count: increment(1) };
+  if (a && !a.cover && thumb) patch.cover = thumb;
+  await updateDoc(doc(db, 'albums', albumId), patch);
+  return { id: itemRef.id, type, url, thumb, name: file.name };
 }
 
 export function logout() { return ready ? signOut(auth) : Promise.resolve(); }

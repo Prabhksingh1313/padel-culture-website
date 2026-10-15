@@ -106,6 +106,16 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // Match day gallery: everyone can view, organisers upload.
+    match /albums/{aid} {
+      allow read: if true;
+      allow write: if isAdmin();
+      match /items/{iid} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+    }
+
     // Waitlist: public (first name + initial only), one entry per player per game.
     match /waitlist/{wid} {
       allow read: if true;

@@ -6,7 +6,6 @@ import { getCollection } from 'astro:content';
 import site from '../data/site.json';
 import faqData from '../data/faq.json';
 import gallery from '../data/gallery.json';
-import highlightsData from '../data/highlights.json';
 import fbConfig from '../data/firebase.json';
 import fs from 'node:fs';
 const hasVideo = fs.existsSync('public/video/hero.mp4');
@@ -61,20 +60,6 @@ const jsonld = [
   })),
 ];
 function to12(t) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(t).trim()); if (!m) return t; const h = Number(m[1]); return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'am' : 'pm'}`; }
-// Highlights: Instagram reels, YouTube Shorts or a video file on the site.
-type HL = { title: string; url: string; poster?: string; tag?: string; date?: string };
-const highlights = (highlightsData.items as HL[])
-  .map((h) => {
-    const url = String(h.url || '').trim();
-    const ig = url.match(/instagram\.com\/(?:reel|reels|p)\/([A-Za-z0-9_-]+)/);
-    const yt = url.match(/(?:youtube\.com\/(?:shorts\/|watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/);
-    const kind = ig ? 'ig' : yt ? 'yt' : /\.(mp4|webm|mov)(\?|$)/i.test(url) ? 'file' : '';
-    const embed = ig ? `https://www.instagram.com/reel/${ig[1]}/embed/` : yt ? `https://www.youtube.com/embed/${yt[1]}?autoplay=1&playsinline=1&rel=0` : url;
-    return { ...h, url, kind, embed };
-  })
-  .filter((h) => h.kind)
-  .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
-const hlTags = [...new Set(highlights.map((h) => h.tag).filter(Boolean))];
 
 ---
 <Base jsonld={jsonld}>
@@ -205,37 +190,19 @@ const hlTags = [...new Set(highlights.map((h) => h.tag).filter(Boolean))];
       </div>
     </section>
 
-    {highlights.length > 0 && (
-      <section id="highlights" class="hl" aria-labelledby="h-hl">
-        <div class="wrap">
-          <div class="hl-head">
-            <div>
-              <p class="eyebrow">On court</p>
-              <h2 id="h-hl">Highlights</h2>
-            </div>
-            {hlTags.length > 1 && (
-              <div class="hl-tags" role="group" aria-label="Filter highlights">
-                <button type="button" class="hl-tag" data-tag="" aria-pressed="true">All</button>
-                {hlTags.map((t) => <button type="button" class="hl-tag" data-tag={t} aria-pressed="false">{t}</button>)}
-              </div>
-            )}
+    <section id="gallery" class="hl" aria-labelledby="h-hl" hidden>
+      <div class="wrap">
+        <div class="hl-head">
+          <div>
+            <p class="eyebrow">Match day albums</p>
+            <h2 id="h-hl">Gallery</h2>
           </div>
-          <div class="hl-row">
-            {highlights.map((h) => (
-              <figure class="hl-item" data-tag={h.tag || ''}>
-                <button type="button" class="hl-play" data-kind={h.kind} data-embed={h.embed} aria-label={`Play: ${h.title}`}>
-                  {h.poster ? <img src={h.poster} alt="" loading="lazy" /> : <span class="hl-blank" aria-hidden="true"></span>}
-                  <span class="hl-btn" aria-hidden="true">▶</span>
-                  {h.tag && <span class="hl-chip">{h.tag}</span>}
-                </button>
-                <figcaption>{h.title}</figcaption>
-              </figure>
-            ))}
-          </div>
-          <p class="hl-cta"><a class="btn btn-solid" href="#games">Book the next one</a> <a class="btn btn-ghost" href={site.instagram} target="_blank" rel="noopener">More on Instagram</a></p>
+          <a class="btn btn-ghost" href="/gallery">All albums →</a>
         </div>
-      </section>
-    )}
+        <div class="alb-row" id="t-alb"></div>
+        <p class="hl-cta"><a class="btn btn-solid" href="#games">Book the next one</a></p>
+      </div>
+    </section>
 
     <!-- PADEL GUIDE -->
     <section id="guide" class="guide-sec">
@@ -432,29 +399,6 @@ const hlTags = [...new Set(highlights.map((h) => h.tag).filter(Boolean))];
     })();
   </script>
 
-  <script is:inline>
-    (() => {
-      document.querySelectorAll('.hl-play').forEach((b) => b.addEventListener('click', () => {
-        const kind = b.dataset.kind, src = b.dataset.embed;
-        let el;
-        if (kind === 'file') {
-          el = document.createElement('video');
-          Object.assign(el, { src, controls: true, autoplay: true, playsInline: true });
-        } else {
-          el = document.createElement('iframe');
-          Object.assign(el, { src, allow: 'autoplay; encrypted-media; picture-in-picture', allowFullscreen: true, loading: 'lazy', title: b.getAttribute('aria-label') });
-          el.setAttribute('frameborder', '0');
-          el.setAttribute('scrolling', 'no');
-        }
-        el.className = 'hl-media';
-        b.replaceWith(el);
-      }));
-      document.querySelectorAll('.hl-tag').forEach((t) => t.addEventListener('click', () => {
-        document.querySelectorAll('.hl-tag').forEach((x) => x.setAttribute('aria-pressed', String(x === t)));
-        document.querySelectorAll('.hl-item').forEach((it) => { it.hidden = !!t.dataset.tag && it.dataset.tag !== t.dataset.tag; });
-      }));
-    })();
-  </script>
   <script type="module" is:inline>
     const $ = (id) => document.getElementById(id);
     const rows = [...document.querySelectorAll('#board .fixture')];
@@ -591,6 +535,16 @@ const hlTags = [...new Set(highlights.map((h) => h.tag).filter(Boolean))];
       try {
         const fb = await import('/js/firebase.js');
         fbm = fb;
+        fb.listAlbums().then((albums) => {
+          const list = albums.filter((a) => a.count > 0).slice(0, 4);
+          if (!list.length) return;
+          const esc = (v) => String(v ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+          const dt = (d) => d ? new Date(d + 'T12:00:00+05:30').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' }) : '';
+          $('t-alb').innerHTML = list.map((a) => `<a class="alb" href="/gallery?a=${encodeURIComponent(a.id)}">
+              <span class="alb-cover">${a.cover ? `<img src="${esc(a.cover)}" alt="" loading="lazy" />` : '<span class="hl-blank"></span>'}<span class="hl-chip">${a.count} ${a.count === 1 ? 'item' : 'items'}</span></span>
+              <span class="alb-t">${esc(a.title)}</span><span class="alb-d">${esc(dt(a.date))}${a.venue ? ' · ' + esc(a.venue) : ''}</span></a>`).join('');
+          $('gallery').hidden = false;
+        }).catch((e) => console.error(e));
         const RT = await import('/js/rating.js');
         const lbPromise = fb.listLeaderboard();
         Promise.all([lbPromise, fb.listGameCounts().catch(() => ({}))]).then(([raw, counts]) => renderWeek(raw, counts, RT)).catch((e) => { console.error(e); renderWeek([], {}, RT); });
@@ -769,6 +723,16 @@ const hlTags = [...new Set(highlights.map((h) => h.tag).filter(Boolean))];
   .hl .eyebrow { color: #C8E06B; }
   .hl-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 1rem 2rem; margin-bottom: 1.6rem; }
   .hl-head h2 { font-size: clamp(2.2rem, 5vw, 3.4rem); color: #fff; }
+  .alb-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: 1rem; }
+  .alb-row :global(.alb) { display: grid; gap: 0.35rem; text-decoration: none; color: #F2F6EC; }
+  .alb-row :global(.alb-cover) { position: relative; display: block; aspect-ratio: 4 / 3; border-radius: 12px; overflow: hidden; background: #12301d; }
+  .alb-row :global(.alb-cover img) { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .3s; }
+  .alb-row :global(.alb:hover img) { transform: scale(1.04); }
+  .alb-row :global(.hl-blank) { position: absolute; inset: 0; background: radial-gradient(120% 80% at 50% 20%, #24452b, #0B1F14); }
+  .alb-row :global(.hl-chip) { position: absolute; right: 0.6rem; bottom: 0.6rem; padding: 0.25rem 0.65rem; border-radius: 999px; background: rgba(11,31,20,.75); color: #fff; font-size: 0.75rem; }
+  .alb-row :global(.alb-t) { font-family: var(--display); font-size: 1.4rem; }
+  .alb-row :global(.alb-d) { font-size: 0.85rem; color: rgba(242,246,236,.7); }
+  .hl[hidden] { display: none; }
   .hl-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; }
   .hl-tag { font: 500 0.82rem var(--body); padding: 0.45rem 0.9rem; border-radius: 999px; border: 1px solid rgba(242,246,236,.3); background: transparent; color: #F2F6EC; cursor: pointer; }
   .hl-tag[aria-pressed="true"] { background: #C8E06B; border-color: #C8E06B; color: #0B1F14; }

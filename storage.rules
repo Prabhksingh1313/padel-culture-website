@@ -1,0 +1,18 @@
+rules_version = '2';
+// Paste this into Firebase console → Storage → Rules, then Publish.
+service firebase.storage {
+  match /b/{bucket}/o {
+    function isAdmin() {
+      return request.auth != null && (
+        request.auth.token.phone_number in ['+918368715913', '+918800571228']
+        || (request.auth.token.email in ['prabhkiratsingh1313@gmail.com', 'hello@padelculture.in']
+            && request.auth.token.email_verified == true)
+      );
+    }
+    match /albums/{all=**} {
+      allow read: if true;
+      allow create, update: if isAdmin() && request.resource.size < 500 * 1024 * 1024;
+      allow delete: if isAdmin();
+    }
+  }
+}

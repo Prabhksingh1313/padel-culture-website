@@ -63,6 +63,7 @@ const games = (await getCollection('games')).map((g) => ({
         <button type="button" role="tab" class="tab" data-tab="players" aria-selected="true">Players</button>
         <button type="button" role="tab" class="tab" data-tab="bookings" aria-selected="false">Enrollments</button>
         <button type="button" role="tab" class="tab" data-tab="scores" aria-selected="false">Scores &amp; ratings</button>
+        <button type="button" role="tab" class="tab" data-tab="gallery" aria-selected="false">Gallery</button>
         <a class="tab tab-link" href="/admin/">Games &amp; site text ↗</a>
       </div>
       <p class="note" id="t-scale" hidden></p>
@@ -94,6 +95,20 @@ const games = (await getCollection('games')).map((g) => ({
         <h1>Enrollments</h1>
         <p class="muted how">Everyone who booked each game, with payment status. Send each player a WhatsApp confirmation that their slot is booked and when to arrive: tap <strong>Send confirmation</strong> for one player, or <strong>Send to all</strong> to go through them one by one. Each tap opens WhatsApp (or WhatsApp Business) with the message ready, and you press send. Mark players Paid as the money comes in.</p>
         <div id="t-bookings" class="enroll"></div>
+      </div>
+
+      <div class="tabpanel" id="tab-gallery" hidden>
+        <h1>Gallery</h1>
+        <p class="muted how">Make an album for each game, then add the photos and videos straight from your phone or laptop. Everyone can view and download them at <a href="/gallery" target="_blank" rel="noopener">padelculture.in/gallery</a>, so you can share one link instead of sending files.</p>
+        <form class="sess" id="g-new">
+          <label>Game<select id="g-game"></select></label>
+          <label>Album name<input id="g-title" required placeholder="e.g. Thursday Night Americano" /></label>
+          <label>Date<input id="g-date" type="date" required /></label>
+          <label>Venue<input id="g-venue" placeholder="e.g. Skyball Padel" /></label>
+          <div class="g-new-act"><button type="submit" class="btn btn-solid">Create album</button></div>
+        </form>
+        <p class="err" id="g-err" hidden></p>
+        <div id="g-albums" class="g-albums"><p class="muted">Loading…</p></div>
       </div>
 
       <div class="tabpanel" id="tab-scores" hidden>
@@ -218,6 +233,7 @@ const games = (await getCollection('games')).map((g) => ({
         }
         render();
         initScores();
+        initGallery();
         try {
           let wl = [];
           try { wl = await fb.listWaitlist(); } catch (e) { console.error(e); }
@@ -437,6 +453,98 @@ const games = (await getCollection('games')).map((g) => ({
       document.querySelectorAll('.tab[data-tab]').forEach((x) => x.setAttribute('aria-selected', String(x === t)));
       document.querySelectorAll('.tabpanel').forEach((pn) => (pn.hidden = pn.id !== 'tab-' + t.dataset.tab));
     }));
+
+    // ---------- Gallery ----------
+    function initGallery() {
+      const games = JSON.parse($('games-data').textContent).sort((a, b) => Date.parse(b.start) - Date.parse(a.start));
+      $('g-game').innerHTML = games.map((g) => `<option value="${esc(g.id)}">${esc(g.title)} · ${esc(g.when)}</option>`).join('') + '<option value="">Other / custom</option>';
+      const sync = () => {
+        const g = games.find((x) => x.id === $('g-game').value);
+        if (g) { $('g-title').value = g.title; $('g-date').value = new Date(g.start).toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); $('g-venue').value = g.venue || ''; }
+      };
+      $('g-game').addEventListener('change', sync);
+      sync();
+      if (!$('g-date').value) $('g-date').value = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+      loadAlbums();
+    }
+    const galErr = (msg) => { $('g-err').textContent = msg || ''; $('g-err').hidden = !msg; };
+    const permMsg = (ex, what) => ((ex && ex.code) || '').includes('permission') || ((ex && ex.code) || '').includes('unauthorized')
+      ? `Couldn't ${what}: the Firebase rules for the gallery haven't been published yet. (${ex.code})`
+      : `Couldn't ${what}. (${(ex && ex.code) || (ex && ex.message) || 'unknown'})`;
+    $('g-new').addEventListener('submit', async (e) => {
+      e.preventDefault(); galErr();
+      const btn = e.target.querySelector('button'); btn.disabled = true;
+      try {
+        await fb.adminCreateAlbum({ title: $('g-title').value.trim(), date: $('g-date').value, venue: $('g-venue').value.trim(), gameId: $('g-game').value || null });
+        await loadAlbums();
+      } catch (ex) { console.error(ex); galErr(permMsg(ex, 'create the album')); }
+      btn.disabled = false;
+    });
+    async function loadAlbums() {
+      try {
+        const albums = await fb.listAlbums();
+        if (!albums.length) { $('g-albums').innerHTML = '<p class="muted">No albums yet. Create one above.</p>'; return; }
+        $('g-albums').innerHTML = albums.map((a) => `
+          <article class="ga" data-id="${esc(a.id)}">
+            <header class="ga-head">
+              <div><h3>${esc(a.title)}</h3><p class="muted">${esc(a.date || '')}${a.venue ? ' · ' + esc(a.venue) : ''} · <span class="ga-count">${a.count || 0}</span> items</p></div>
+              <div class="ga-acts">
+                <label class="btn btn-solid">Add photos &amp; videos<input type="file" class="ga-file" accept="image/*,video/*" multiple hidden /></label>
+                <a class="btn btn-ghost" href="/gallery?a=${encodeURIComponent(a.id)}" target="_blank" rel="noopener">View</a>
+                <button type="button" class="linkbtn danger ga-del">Delete album</button>
+              </div>
+            </header>
+            <div class="ga-progress"></div>
+            <div class="ga-grid"><p class="muted">Loading…</p></div>
+          </article>`).join('');
+        for (const card of $('g-albums').querySelectorAll('.ga')) loadItems(card);
+      } catch (ex) { console.error(ex); $('g-albums').innerHTML = `<p class="err">${esc(permMsg(ex, 'load albums'))}</p>`; }
+    }
+    async function loadItems(card) {
+      const id = card.dataset.id;
+      try {
+        const items = await fb.listAlbumItems(id);
+        card._items = items;
+        card.querySelector('.ga-count').textContent = items.length;
+        card.querySelector('.ga-grid').innerHTML = items.length ? items.map((it) => `
+          <figure class="gi">${it.thumb ? `<img src="${esc(it.thumb)}" alt="" loading="lazy" />` : '<span class="gi-blank"></span>'}${it.type === 'video' ? '<span class="gi-v">▶</span>' : ''}
+            <button type="button" class="gi-x" data-item="${esc(it.id)}" aria-label="Delete">✕</button></figure>`).join('') : '<p class="muted">No photos or videos yet.</p>';
+      } catch (ex) { console.error(ex); card.querySelector('.ga-grid').innerHTML = `<p class="err">${esc(permMsg(ex, 'load this album'))}</p>`; }
+    }
+    $('g-albums').addEventListener('change', async (e) => {
+      if (!e.target.classList.contains('ga-file')) return;
+      const card = e.target.closest('.ga');
+      const files = [...e.target.files];
+      e.target.value = '';
+      const prog = card.querySelector('.ga-progress');
+      let done = 0, failed = 0;
+      for (const [i, file] of files.entries()) {
+        prog.innerHTML = `<span>Uploading ${i + 1} of ${files.length}: ${esc(file.name)}</span><span class="bar"><i style="width:0%"></i></span>`;
+        try {
+          await fb.adminUploadToAlbum(card.dataset.id, file, (f) => { const b = prog.querySelector('.bar i'); if (b) b.style.width = Math.round(f * 100) + '%'; });
+          done++;
+        } catch (ex) { console.error(ex); failed++; prog.insertAdjacentHTML('beforeend', `<p class="err">${esc(file.name)}: ${esc(permMsg(ex, 'upload'))}</p>`); await new Promise((r) => setTimeout(r, 1500)); }
+      }
+      prog.innerHTML = `<span>${done} uploaded${failed ? `, ${failed} failed` : ''}. They're live on the gallery now.</span>`;
+      loadItems(card);
+    });
+    $('g-albums').addEventListener('click', async (e) => {
+      const card = e.target.closest('.ga');
+      if (!card) return;
+      if (e.target.classList.contains('gi-x')) {
+        const it = (card._items || []).find((x) => x.id === e.target.dataset.item);
+        if (!it) return;
+        if (e.target.dataset.confirming !== '1') { e.target.dataset.confirming = '1'; e.target.textContent = 'Delete?'; e.target.classList.add('confirm'); return; }
+        e.target.disabled = true;
+        try { await fb.adminDeleteItem(card.dataset.id, it); } catch (ex) { console.error(ex); galErr(permMsg(ex, 'delete')); }
+        loadItems(card);
+      } else if (e.target.classList.contains('ga-del')) {
+        if (e.target.dataset.confirming !== '1') { e.target.dataset.confirming = '1'; e.target.textContent = 'Tap again to delete the whole album'; return; }
+        e.target.disabled = true;
+        try { await fb.adminDeleteAlbum(card.dataset.id); } catch (ex) { console.error(ex); galErr(permMsg(ex, 'delete the album')); }
+        loadAlbums();
+      }
+    });
 
     // ---------- Scores & ratings ----------
     const START = R.START_RATING;
@@ -675,6 +783,26 @@ const games = (await getCollection('games')).map((g) => ({
   .table-wrap :global(.linkbtn) { background: none; border: 0; padding: 0; margin-left: 0.5rem; font: inherit; color: var(--sage); text-decoration: underline; cursor: pointer; }
   .table-wrap :global(td input), .table-wrap :global(td select) { width: auto; max-width: 6.5rem; padding: 0.3rem 0.5rem; font: inherit; color: var(--chalk); background: #fff; border: 1px solid var(--line); border-radius: 4px; }
   .bk-title { font-size: 2rem; margin-top: 2rem; }
+  .g-new-act { display: flex; align-items: flex-end; }
+  .g-albums { display: grid; gap: 1.2rem; margin-top: 1rem; }
+  .g-albums :global(.ga) { display: grid; gap: 0.9rem; padding: 1.2rem; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+  .g-albums :global(.ga-head) { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.8rem 1.5rem; align-items: flex-start; }
+  .g-albums :global(.ga-head h3) { font-size: 1.5rem; }
+  .g-albums :global(.ga-acts) { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+  .g-albums :global(.ga-acts label.btn) { cursor: pointer; }
+  .g-albums :global(.linkbtn) { background: none; border: 0; padding: 0; font: inherit; font-size: 0.85rem; color: var(--sage); text-decoration: underline; cursor: pointer; }
+  .g-albums :global(.danger) { color: #9B2C1F; }
+  .g-albums :global(.ga-progress) { display: grid; gap: 0.4rem; font-size: 0.85rem; color: var(--mist); }
+  .g-albums :global(.ga-progress:empty) { display: none; }
+  .g-albums :global(.bar) { display: block; height: 6px; border-radius: 3px; background: var(--pine); overflow: hidden; }
+  .g-albums :global(.bar i) { display: block; height: 100%; background: var(--olive); transition: width .2s; }
+  .g-albums :global(.ga-grid) { display: grid; grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr)); gap: 0.5rem; }
+  .g-albums :global(.gi) { position: relative; margin: 0; aspect-ratio: 1; border-radius: 8px; overflow: hidden; background: var(--pine); }
+  .g-albums :global(.gi img) { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .g-albums :global(.gi-blank) { position: absolute; inset: 0; background: #12301d; }
+  .g-albums :global(.gi-v) { position: absolute; left: 0.4rem; bottom: 0.3rem; color: #fff; text-shadow: 0 1px 4px rgba(0,0,0,.6); font-size: 0.8rem; }
+  .g-albums :global(.gi-x) { position: absolute; top: 0.3rem; right: 0.3rem; min-width: 1.6rem; height: 1.6rem; border: 0; border-radius: 999px; background: rgba(0,0,0,.6); color: #fff; font-size: 0.75rem; cursor: pointer; padding: 0 0.4rem; }
+  .g-albums :global(.gi-x.confirm) { background: #9B2C1F; }
   .tabs { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1.5rem; border-bottom: 1px solid var(--line); }
   .tab { font: 600 0.85rem var(--body); padding: 0.75rem 1rem; border: 0; border-bottom: 2px solid transparent; background: none; color: var(--mist); cursor: pointer; text-decoration: none; margin-bottom: -1px; }
   .tab[aria-selected="true"] { color: var(--chalk); border-bottom-color: var(--olive); }

@@ -1,0 +1,181 @@
+---
+import Base from '../layouts/Base.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import fb from '../data/firebase.json';
+---
+<Base title="Gallery | Padel Culture" description="Photos and videos from every Padel Culture game. View and download your match day album.">
+  <script type="application/json" id="fb-config" set:html={JSON.stringify(fb)} />
+  <Header />
+  <main class="wrap gal">
+    <!-- All albums -->
+    <section id="v-list">
+      <p class="eyebrow">Match day albums</p>
+      <h1>Gallery</h1>
+      <p class="lede">Photos and videos from every game. Find your session, tap to view, and download the ones you're in.</p>
+      <div class="albums" id="t-albums"><p class="muted">Loading…</p></div>
+    </section>
+
+    <!-- One album -->
+    <section id="v-album" hidden>
+      <a class="back" href="/gallery">← All albums</a>
+      <div class="a-head">
+        <div>
+          <p class="eyebrow" id="t-a-meta"></p>
+          <h1 id="t-a-title"></h1>
+          <p class="muted" id="t-a-count"></p>
+        </div>
+        <div class="a-acts">
+          <button type="button" class="btn btn-solid" id="b-all">Download all</button>
+          <button type="button" class="btn btn-ghost" id="b-share">Share album</button>
+        </div>
+      </div>
+      <p class="note" id="t-note" hidden></p>
+      <div class="grid" id="t-grid"></div>
+    </section>
+  </main>
+
+  <!-- Viewer -->
+  <div class="lb" id="lb" hidden role="dialog" aria-modal="true" aria-label="Photo viewer">
+    <button type="button" class="lb-x" id="lb-x" aria-label="Close">✕</button>
+    <button type="button" class="lb-nav lb-prev" id="lb-prev" aria-label="Previous">‹</button>
+    <div class="lb-stage" id="lb-stage"></div>
+    <button type="button" class="lb-nav lb-next" id="lb-next" aria-label="Next">›</button>
+    <div class="lb-bar">
+      <span id="lb-pos"></span>
+      <a class="btn btn-play" id="lb-dl" href="#" download>Download</a>
+    </div>
+  </div>
+  <Footer />
+
+  <script type="module" is:inline>
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const cfg = JSON.parse($('fb-config').textContent);
+    const dateText = (d) => d ? new Date(d + 'T12:00:00+05:30').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' }) : '';
+    const params = new URLSearchParams(location.search);
+    const albumId = params.get('a');
+    let items = [], cur = 0;
+
+    if (!cfg.apiKey) { $('t-albums').innerHTML = '<p class="muted">The gallery opens soon.</p>'; }
+    else {
+      const fb = await import('/js/firebase.js');
+      if (albumId) showAlbum(fb, albumId); else showList(fb);
+    }
+
+    async function showList(fb) {
+      try {
+        const albums = (await fb.listAlbums()).filter((a) => a.count > 0);
+        $('t-albums').innerHTML = albums.length ? albums.map((a) => `
+          <a class="album" href="/gallery?a=${encodeURIComponent(a.id)}">
+            <span class="cover">${a.cover ? `<img src="${esc(a.cover)}" alt="" loading="lazy" />` : '<span class="cover-blank"></span>'}<span class="cnt">${a.count} ${a.count === 1 ? 'item' : 'items'}</span></span>
+            <span class="a-title">${esc(a.title)}</span>
+            <span class="muted">${esc(dateText(a.date))}${a.venue ? ' · ' + esc(a.venue) : ''}</span>
+          </a>`).join('') : '<p class="muted">The first album goes up after our next game. Check back soon.</p>';
+      } catch (e) { console.error(e); $('t-albums').innerHTML = '<p class="muted">Couldn\'t load the gallery. Refresh to try again.</p>'; }
+    }
+
+    async function showAlbum(fb, id) {
+      $('v-list').hidden = true; $('v-album').hidden = false;
+      try {
+        const a = await fb.getAlbum(id);
+        if (!a) { $('t-a-title').textContent = 'Album not found'; return; }
+        document.title = `${a.title} | Padel Culture gallery`;
+        $('t-a-meta').textContent = [dateText(a.date), a.venue].filter(Boolean).join(' · ');
+        $('t-a-title').textContent = a.title;
+        items = await fb.listAlbumItems(id);
+        const ph = items.filter((x) => x.type === 'photo').length, vd = items.length - ph;
+        $('t-a-count').textContent = [ph && `${ph} photo${ph === 1 ? '' : 's'}`, vd && `${vd} video${vd === 1 ? '' : 's'}`].filter(Boolean).join(' · ') || 'No photos yet';
+        $('t-grid').innerHTML = items.map((it, i) => `
+          <figure class="tile">
+            <button type="button" class="open" data-i="${i}" aria-label="Open ${it.type} ${i + 1}">
+              ${it.thumb ? `<img src="${esc(it.thumb)}" alt="" loading="lazy" />` : `<span class="cover-blank"></span>`}
+              ${it.type === 'video' ? '<span class="play" aria-hidden="true">▶</span>' : ''}
+            </button>
+            <a class="dl" href="${esc(it.url)}" download aria-label="Download">↓</a>
+          </figure>`).join('');
+        $('t-grid').querySelectorAll('.open').forEach((b) => b.addEventListener('click', () => openLb(+b.dataset.i)));
+        $('b-all').hidden = items.length < 2;
+      } catch (e) { console.error(e); $('t-a-title').textContent = 'Couldn\'t load this album'; }
+    }
+
+    // Viewer
+    function openLb(i) {
+      cur = (i + items.length) % items.length;
+      const it = items[cur];
+      $('lb-stage').innerHTML = it.type === 'video'
+        ? `<video src="${esc(it.url)}" controls autoplay playsinline poster="${esc(it.thumb || '')}"></video>`
+        : `<img src="${esc(it.url)}" alt="" />`;
+      $('lb-pos').textContent = `${cur + 1} of ${items.length}`;
+      $('lb-dl').href = it.url;
+      $('lb').hidden = false;
+      document.body.style.overflow = 'hidden';
+    }
+    function closeLb() { $('lb').hidden = true; $('lb-stage').innerHTML = ''; document.body.style.overflow = ''; }
+    $('lb-x').addEventListener('click', closeLb);
+    $('lb-prev').addEventListener('click', () => openLb(cur - 1));
+    $('lb-next').addEventListener('click', () => openLb(cur + 1));
+    $('lb').addEventListener('click', (e) => { if (e.target.id === 'lb' || e.target.id === 'lb-stage') closeLb(); });
+    document.addEventListener('keydown', (e) => {
+      if ($('lb').hidden) return;
+      if (e.key === 'Escape') closeLb();
+      if (e.key === 'ArrowLeft') openLb(cur - 1);
+      if (e.key === 'ArrowRight') openLb(cur + 1);
+    });
+    let tx = null;
+    $('lb').addEventListener('touchstart', (e) => { tx = e.touches[0].clientX; }, { passive: true });
+    $('lb').addEventListener('touchend', (e) => { if (tx == null) return; const d = e.changedTouches[0].clientX - tx; if (Math.abs(d) > 50) openLb(cur + (d < 0 ? 1 : -1)); tx = null; });
+
+    // Download all: one file after another (the browser may ask once to allow multiple downloads).
+    $('b-all').addEventListener('click', async () => {
+      $('t-note').textContent = `Downloading ${items.length} files. If your browser asks, allow multiple downloads.`;
+      $('t-note').hidden = false;
+      for (const it of items) {
+        const a = Object.assign(document.createElement('a'), { href: it.url, download: '' });
+        document.body.appendChild(a); a.click(); a.remove();
+        await new Promise((r) => setTimeout(r, 700));
+      }
+    });
+    $('b-share').addEventListener('click', async () => {
+      const url = location.href;
+      try {
+        if (navigator.share) await navigator.share({ title: document.title, url });
+        else { await navigator.clipboard.writeText(url); $('t-note').textContent = 'Album link copied. Paste it anywhere to share.'; $('t-note').hidden = false; }
+      } catch (e) {}
+    });
+  </script>
+</Base>
+
+<style>
+  .gal { display: grid; gap: 1.2rem; padding-block: clamp(2.5rem, 7vw, 4.5rem); }
+  .gal h1 { font-size: clamp(2.6rem, 6vw, 4rem); }
+  .lede { color: var(--mist); max-width: 38rem; margin-bottom: 1.4rem; }
+  .muted { color: var(--mist); font-size: 0.9rem; }
+  .albums { display: grid; grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr)); gap: 1.4rem; }
+  .albums :global(.album) { display: grid; gap: 0.4rem; text-decoration: none; color: var(--chalk); }
+  .albums :global(.cover), .grid :global(.open) { position: relative; display: block; aspect-ratio: 4 / 3; border-radius: 12px; overflow: hidden; background: var(--pine); }
+  .albums :global(.cover img), .grid :global(.open img) { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform .3s; }
+  .albums :global(.album:hover img), .grid :global(.open:hover img) { transform: scale(1.04); }
+  .albums :global(.cover-blank), .grid :global(.cover-blank) { position: absolute; inset: 0; background: radial-gradient(120% 80% at 50% 20%, #24452b, #0B1F14); }
+  .albums :global(.cnt) { position: absolute; right: 0.6rem; bottom: 0.6rem; padding: 0.25rem 0.6rem; border-radius: 999px; background: rgba(11,31,20,.75); color: #fff; font-size: 0.75rem; }
+  .albums :global(.a-title) { font-family: var(--display); font-size: 1.5rem; }
+  .back { color: var(--sage); font-size: 0.9rem; }
+  .a-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 1rem 2rem; margin: 0.6rem 0 1.4rem; }
+  .a-acts { display: flex; flex-wrap: wrap; gap: 0.6rem; }
+  .note { padding: 0.7rem 1rem; border: 1px solid var(--line); border-radius: 8px; background: var(--pine); font-size: 0.9rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr)); gap: 0.6rem; }
+  .grid :global(.tile) { position: relative; margin: 0; }
+  .grid :global(.open) { width: 100%; aspect-ratio: 1; border: 0; padding: 0; cursor: zoom-in; }
+  .grid :global(.play) { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 3rem; height: 3rem; display: grid; place-items: center; border-radius: 50%; background: rgba(200,224,107,.92); color: #0B1F14; padding-left: 0.15rem; }
+  .grid :global(.dl) { position: absolute; right: 0.4rem; bottom: 0.4rem; width: 2.2rem; height: 2.2rem; display: grid; place-items: center; border-radius: 50%; background: rgba(255,255,255,.92); color: #0B1F14; text-decoration: none; font-weight: 700; box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+  .lb { position: fixed; inset: 0; z-index: 100; background: rgba(5,15,10,.95); display: grid; grid-template-columns: 3.5rem 1fr 3.5rem; grid-template-rows: 1fr auto; align-items: center; }
+  .lb[hidden] { display: none; }
+  .lb-stage { grid-column: 2; grid-row: 1; height: 100%; display: grid; place-items: center; padding: 3.5rem 0 1rem; min-width: 0; }
+  .lb-stage :global(img), .lb-stage :global(video) { max-width: 100%; max-height: calc(100dvh - 9rem); border-radius: 8px; }
+  .lb-x { position: absolute; top: 0.8rem; right: 0.8rem; width: 2.6rem; height: 2.6rem; border: 0; border-radius: 50%; background: rgba(255,255,255,.12); color: #fff; font-size: 1.1rem; cursor: pointer; }
+  .lb-nav { grid-row: 1; border: 0; background: none; color: #fff; font-size: 2.6rem; cursor: pointer; height: 100%; }
+  .lb-prev { grid-column: 1; } .lb-next { grid-column: 3; }
+  .lb-bar { grid-column: 1 / -1; grid-row: 2; display: flex; justify-content: center; align-items: center; gap: 1.2rem; padding: 1rem; color: rgba(255,255,255,.8); font-size: 0.9rem; }
+  .btn-play { background: #C8E06B; border-color: #C8E06B; color: #0B1F14; }
+  @media (max-width: 600px) { .lb { grid-template-columns: 2.2rem 1fr 2.2rem; } .lb-nav { font-size: 2rem; } }
+</style>
