@@ -19,7 +19,10 @@ const menus: { label: string; href: string; items: Item[] }[] = [
     ...soon.map((g) => ({ label: g.label, sub: g.sub, href: '/#games' })),
     { label: 'All upcoming games', href: '/#games' },
     { label: 'This week', href: '/#this-week' },
-    { label: 'Gallery', href: '/gallery' },
+  ] },
+  { label: 'Gallery', href: '/gallery', items: [
+    { label: 'All match day albums', sub: 'Photos and videos from every game', href: '/gallery' },
+    { label: 'Latest albums', sub: 'On the home page', href: '/#gallery' },
   ] },
   { label: 'Padel guide', href: '/#guide', items: [
     { label: 'History of padel', href: '/#guide-history' },
